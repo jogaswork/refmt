@@ -27,9 +27,23 @@ def main_menu_reply() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🔗 Реферальная система")],
+            [KeyboardButton(text="👤 Профиль")],
         ],
         resize_keyboard=True,
         is_persistent=True,
+    )
+
+
+def join_chat_kb(chat_link: str) -> InlineKeyboardMarkup:
+    """
+    Кнопка-ссылка на вступление в обязательный чат.
+    Показывается, если пользователь нажал «Профиль», но не состоит в чате
+    (см. handlers/user.py -> show_profile).
+    """
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="➡️ Вступить в чат", url=chat_link)]
+        ]
     )
 
 
@@ -66,6 +80,9 @@ def admin_menu() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="🔗 Настройка группы", callback_data="admin_group_setup")],
             [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
             [InlineKeyboardButton(text="👥 Пользователи (Рефералы)", callback_data="admin_users")],
+            [InlineKeyboardButton(text="🔒 Чат для вкладки «Профиль»", callback_data="admin_profile_chat_setup")],
+            [InlineKeyboardButton(text="💰 Начислить профит", callback_data="admin_add_profit")],
+            [InlineKeyboardButton(text="📝 Логи бота", callback_data="admin_logs")],
         ]
     )
 
