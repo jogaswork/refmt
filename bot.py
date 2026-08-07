@@ -15,6 +15,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 import database as db
 from config import BOT_TOKEN
 from handlers import admin, user
+from middlewares import CallbackLoggingMiddleware, MessageLoggingMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,6 +33,12 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher(storage=MemoryStorage())
+
+    # Логирование действий пользователей (кнопки/сообщения) — регистрируем
+    # как outer-middleware, чтобы оно срабатывало ДО фильтров конкретных
+    # хендлеров и охватывало сразу все роутеры (админ + пользователь).
+    dp.message.outer_middleware(MessageLoggingMiddleware())
+    dp.callback_query.outer_middleware(CallbackLoggingMiddleware())
 
     # Порядок важен: сначала более специфичные хендлеры админки,
     # затем общие пользовательские (в т.ч. FSM-хендлеры анкеты).
