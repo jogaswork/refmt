@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT,
     first_name TEXT,
     referrer_id INTEGER,
-    joined_at TEXT
+    joined_at TEXT,
+    profits REAL NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS applications (
@@ -35,13 +36,42 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- Таблица логов активности пользователей: какие кнопки нажимали
+-- и какие текстовые сообщения/команды отправляли (см. middlewares.py).
+CREATE TABLE IF NOT EXISTS logs (
+    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    username TEXT,
+    event_type TEXT NOT NULL,   -- 'message' (текст/команда) или 'callback' (нажатие inline-кнопки)
+    content TEXT,               -- текст сообщения / callback_data кнопки
+    created_at TEXT NOT NULL
+);
 """
 
 
+async def _ensure_column(db: aiosqlite.Connection, table: str, column: str, ddl: str) -> None:
+    """
+    Безопасно добавляет колонку в уже существующую таблицу, если её ещё нет.
+
+    Нужно для пользователей, которые обновляют бота с версии 1.0 на 2.0:
+    таблица `users` в их БД уже существует, а CREATE TABLE IF NOT EXISTS
+    новую колонку `profits` в неё не добавит — это делает ALTER TABLE.
+    """
+    cursor = await db.execute(f"PRAGMA table_info({table})")
+    columns = {row[1] for row in await cursor.fetchall()}
+    if column not in columns:
+        await db.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
+
 async def init_db() -> None:
-    """Создаёт таблицы и выставляет дефолтные настройки при первом запуске."""
+    """Создаёт таблицы, накатывает миграции и выставляет дефолтные настройки при первом запуске."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(SCHEMA)
+        await db.commit()
+
+        # Миграция для БД, созданных до появления вкладки «Профиль»
+        await _ensure_column(db, "users", "profits", "profits REAL NOT NULL DEFAULT 0")
         await db.commit()
 
         cursor = await db.execute("SELECT value FROM settings WHERE key = 'group_link'")
@@ -52,6 +82,17 @@ async def init_db() -> None:
                 (DEFAULT_GROUP_LINK,),
             )
             await db.commit()
+
+        # Чат, обязательный для доступа к вкладке «Профиль» — по умолчанию не задан,
+        # т.е. проверка подписки выключена, пока админ не настроит её через /admin.
+        for key, default in (("required_chat_id", ""), ("required_chat_link", "")):
+            cursor = await db.execute("SELECT value FROM settings WHERE key = ?", (key,))
+            row = await cursor.fetchone()
+            if row is None:
+                await db.execute(
+                    "INSERT INTO settings (key, value) VALUES (?, ?)", (key, default)
+                )
+                await db.commit()
 
 
 def _row_to_dict(cursor: aiosqlite.Cursor, row: aiosqlite.Row) -> dict[str, Any]:
@@ -124,6 +165,31 @@ async def get_referrals(user_id: int) -> list[dict[str, Any]]:
         return [_row_to_dict(cursor, row) for row in rows]
 
 
+async def get_referrals_count(user_id: int) -> int:
+    """Быстрый подсчёт количества привлечённых рефералов (без выгрузки всех строк)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users WHERE referrer_id = ?", (user_id,)
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else 0
+
+
+async def add_profit(user_id: int, amount: float) -> None:
+    """
+    Добавляет сумму (в рублях) к общему профиту пользователя.
+    Используется администратором для начисления профита за выполненную работу
+    (см. handlers/admin.py -> «💰 Начислить профит»). Можно передать отрицательное
+    значение, если нужно скорректировать ранее начисленную сумму.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE users SET profits = COALESCE(profits, 0) + ? WHERE user_id = ?",
+            (amount, user_id),
+        )
+        await db.commit()
+
+
 # ---------------------------------------------------------------------------
 # Заявки
 # ---------------------------------------------------------------------------
@@ -192,3 +258,42 @@ async def set_setting(key: str, value: str) -> None:
             (key, value),
         )
         await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Логи активности пользователей (для раздела «Логи бота» в админ-панели)
+# ---------------------------------------------------------------------------
+
+async def add_log(
+    user_id: Optional[int],
+    username: Optional[str],
+    event_type: str,
+    content: Optional[str],
+) -> None:
+    """
+    Записывает одно действие пользователя в лог.
+
+    event_type: 'message' — отправленное текстовое сообщение/команда,
+                'callback' — нажатие inline-кнопки.
+    content: сам текст сообщения или callback_data нажатой кнопки.
+    """
+    created_at = datetime.datetime.utcnow().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO logs (user_id, username, event_type, content, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (user_id, username, event_type, content, created_at),
+        )
+        await db.commit()
+
+
+async def get_recent_logs(limit: int = 50) -> list[dict[str, Any]]:
+    """Возвращает последние `limit` записей лога, от новых к старым."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT * FROM logs ORDER BY log_id DESC LIMIT ?", (limit,)
+        )
+        rows = await cursor.fetchall()
+        return [_row_to_dict(cursor, row) for row in rows]
