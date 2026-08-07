@@ -12,6 +12,7 @@ import database as db
 import keyboards as kb
 from config import ADMIN_IDS
 from states import ApplicationForm
+from utils import format_profile, is_chat_member
 
 router = Router(name="user")
 
@@ -119,3 +120,45 @@ async def referral_system(message: Message, bot: Bot) -> None:
         photo=photo,
         caption=text
     )  # <-- Скобка должна быть с отступом 4 пробела!
+
+
+@router.message(F.text == "👤 Профиль")
+async def show_profile(message: Message, bot: Bot) -> None:
+    """
+    Вкладка «Профиль»: сумма профитов, количество рефералов, сколько дней в боте.
+
+    Доступна только пользователям, состоящим в обязательном рабочем чате
+    (chat_id настраивается администратором через /admin -> «🔒 Чат для вкладки
+    «Профиль»»). Если чат не настроен админом (пустое значение) — проверка
+    пропускается и профиль доступен всем.
+    """
+    user_id = message.from_user.id
+
+    required_chat_id = await db.get_setting("required_chat_id", "")
+    required_chat_link = await db.get_setting("required_chat_link", "")
+
+    if required_chat_id and not await is_chat_member(bot, required_chat_id, user_id):
+        # Пользователь не состоит в обязательном чате — доступ к профилю закрыт.
+        warning_text = (
+            "🔒 Вкладка «Профиль» доступна только участникам нашего рабочего чата.\n\n"
+            "Пожалуйста, вступите в чат по кнопке ниже и попробуйте снова 👇"
+        )
+        if required_chat_link:
+            await message.answer(warning_text, reply_markup=kb.join_chat_kb(required_chat_link))
+        else:
+            # Ссылка ещё не настроена админом — предупреждаем без кнопки.
+            await message.answer(
+                warning_text + "\n\n(Ссылка на чат пока не настроена администратором.)"
+            )
+        return
+
+    # Пользователь прошёл проверку подписки (или проверка отключена) — показываем профиль.
+    user = await db.get_user(user_id)
+    if user is None:
+        # На случай, если запись о пользователе почему-то отсутствует в БД —
+        # создаём её "на лету", чтобы не ронять хендлер.
+        await db.add_user(user_id, message.from_user.username, message.from_user.first_name, None)
+        user = await db.get_user(user_id)
+
+    referrals_count = await db.get_referrals_count(user_id)
+    await message.answer(format_profile(user, referrals_count))
