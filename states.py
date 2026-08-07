@@ -22,3 +22,16 @@ class GroupLinkSetup(StatesGroup):
 class BroadcastForm(StatesGroup):
     """Создание рассылки для всех пользователей."""
     waiting_for_message = State()
+
+
+class ProfileChatSetup(StatesGroup):
+    """Настройка обязательного чата, доступ к которому нужен для вкладки «Профиль»."""
+    waiting_for_chat_id = State()    # числовой ID чата или @username (для getChatMember)
+    waiting_for_chat_link = State()  # ссылка-приглашение, показываемая пользователю
+
+
+class ProfitAccrual(StatesGroup):
+    """Начисление профита пользователю администратором."""
+    waiting_for_user_id = State()
+    waiting_for_amount = State()
+
