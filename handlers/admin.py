@@ -12,7 +12,13 @@ from aiogram.types import CallbackQuery, Message
 import database as db
 import keyboards as kb
 from config import ADMIN_IDS
-from states import BroadcastForm, GroupLinkSetup, RejectReason
+from states import (
+    BroadcastForm,
+    GroupLinkSetup,
+    ProfileChatSetup,
+    ProfitAccrual,
+    RejectReason,
+)
 
 router = Router(name="admin")
 
@@ -286,4 +292,158 @@ async def show_users(callback: CallbackQuery) -> None:
         await callback.message.answer(full_text[i : i + chunk_size])
 
     await callback.message.answer("⬆️ Список выше.", reply_markup=kb.admin_back_kb())
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Настройка обязательного чата для вкладки «Профиль»
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data == "admin_profile_chat_setup")
+async def profile_chat_setup_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    current_chat_id = await db.get_setting("required_chat_id", "") or "не установлен (проверка выключена)"
+    current_chat_link = await db.get_setting("required_chat_link", "") or "не установлена"
+
+    await state.set_state(ProfileChatSetup.waiting_for_chat_id)
+    await callback.message.answer(
+        f"Текущий ID обязательного чата: {current_chat_id}\n"
+        f"Текущая ссылка-приглашение: {current_chat_link}\n\n"
+        "Отправьте ID чата (например, -1001234567890) или @username публичного чата.\n\n"
+        "⚠️ Бот должен быть добавлен в этот чат (рекомендуется — администратором), "
+        "иначе проверка через Telegram API (getChatMember) работать не будет.\n\n"
+        "Чтобы полностью отключить проверку подписки для вкладки «Профиль» — отправьте «-»."
+    )
+    await callback.answer()
+
+
+@router.message(ProfileChatSetup.waiting_for_chat_id)
+async def profile_chat_setup_id(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    raw = (message.text or "").strip()
+    chat_id_value = "" if raw == "-" else raw
+
+    await db.set_setting("required_chat_id", chat_id_value)
+    await state.set_state(ProfileChatSetup.waiting_for_chat_link)
+    await message.answer(
+        "Теперь отправьте ссылку-приглашение в этот чат — она будет показана "
+        "пользователю кнопкой, если он ещё не вступил:"
+    )
+
+
+@router.message(ProfileChatSetup.waiting_for_chat_link)
+async def profile_chat_setup_link(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    await db.set_setting("required_chat_link", (message.text or "").strip())
+    await state.clear()
+    await message.answer(
+        "✅ Настройки обязательного чата для вкладки «Профиль» обновлены!",
+        reply_markup=kb.admin_back_kb(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Начисление профита пользователю
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data == "admin_add_profit")
+async def add_profit_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    await state.set_state(ProfitAccrual.waiting_for_user_id)
+    await callback.message.answer("Введите Telegram ID пользователя, которому начисляем профит:")
+    await callback.answer()
+
+
+@router.message(ProfitAccrual.waiting_for_user_id)
+async def add_profit_user_id(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    raw = (message.text or "").strip()
+    if not raw.isdigit():
+        await message.answer("ID пользователя должен быть числом. Попробуйте ещё раз:")
+        return
+
+    target_user_id = int(raw)
+    if not await db.user_exists(target_user_id):
+        await message.answer(
+            "Пользователь с таким ID не найден в базе бота. Проверьте ID и попробуйте снова "
+            "(или отправьте /admin, чтобы отменить)."
+        )
+        return
+
+    await state.update_data(target_user_id=target_user_id)
+    await state.set_state(ProfitAccrual.waiting_for_amount)
+    await message.answer("Введите сумму профита в рублях (например: 1500 или 1500.50):")
+
+
+@router.message(ProfitAccrual.waiting_for_amount)
+async def add_profit_amount(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    raw = (message.text or "").strip().replace(",", ".")
+    try:
+        amount = float(raw)
+    except ValueError:
+        await message.answer("Нужно ввести число. Попробуйте ещё раз (например: 1500.50):")
+        return
+
+    data = await state.get_data()
+    target_user_id = data.get("target_user_id")
+    await state.clear()
+
+    if target_user_id is None:
+        return
+
+    await db.add_profit(target_user_id, amount)
+    await message.answer(
+        f"✅ Пользователю {target_user_id} начислено {amount:,.2f} ₽.".replace(",", " "),
+        reply_markup=kb.admin_back_kb(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Логи бота
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data == "admin_logs")
+async def show_logs(callback: CallbackQuery) -> None:
+    """
+    Показывает последние действия пользователей: какие кнопки нажимали
+    и какие текстовые сообщения/команды отправляли.
+    Данные собираются автоматически через middlewares.py для всех хендлеров бота.
+    """
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    logs = await db.get_recent_logs(limit=50)
+
+    if not logs:
+        await callback.message.answer("Логов пока нет.", reply_markup=kb.admin_back_kb())
+        await callback.answer()
+        return
+
+    lines = ["📝 Последние действия пользователей (не более 50):\n"]
+    for entry in logs:
+        who = f"@{entry['username']}" if entry["username"] else str(entry["user_id"])
+        action = "нажал кнопку" if entry["event_type"] == "callback" else "написал"
+        lines.append(f"[{entry['created_at']}] {who} {action}: {entry['content']}")
+
+    full_text = "\n".join(lines)
+
+    # Telegram ограничивает сообщение 4096 символами — режем на части при необходимости
+    chunk_size = 3500
+    for i in range(0, len(full_text), chunk_size):
+        await callback.message.answer(full_text[i : i + chunk_size])
+
+    await callback.message.answer("⬆️ Логи выше.", reply_markup=kb.admin_back_kb())
     await callback.answer()
