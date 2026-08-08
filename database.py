@@ -1,13 +1,10 @@
 """
 Слой работы с базой данных (SQLite через aiosqlite).
-
-Все функции открывают короткоживущее соединение на операцию —
-для нагрузки Telegram-бота этого более чем достаточно и не требует
-пула соединений.
+Все функции открывают короткоживущее соединение на операцию — для нагрузки Telegram-бота этого более чем достаточно и не требует пула соединений.
 """
+
 import datetime
 from typing import Any, Optional
-
 import aiosqlite
 
 from config import DB_PATH, DEFAULT_GROUP_LINK
@@ -63,6 +60,7 @@ def _row_to_dict(cursor: aiosqlite.Cursor, row: aiosqlite.Row) -> dict[str, Any]
 # Пользователи
 # ---------------------------------------------------------------------------
 
+
 async def user_exists(user_id: int) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,))
@@ -77,7 +75,7 @@ async def add_user(
 ) -> None:
     joined_at = datetime.datetime.utcnow().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
-await db.execute(
+        await db.execute(
             """
             INSERT INTO users (user_id, username, first_name, referrer_id, joined_at)
             VALUES (?, ?, ?, ?, ?)
@@ -133,6 +131,7 @@ async def get_referrals(user_id: int) -> list[dict[str, Any]]:
 # Заявки
 # ---------------------------------------------------------------------------
 
+
 async def create_application(user_id: int, username: Optional[str], text: str) -> int:
     created_at = datetime.datetime.utcnow().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
@@ -180,6 +179,7 @@ async def update_application_status(
 # Настройки (ключ-значение)
 # ---------------------------------------------------------------------------
 
+
 async def get_setting(key: str, default: Optional[str] = None) -> Optional[str]:
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("SELECT value FROM settings WHERE key = ?", (key,))
@@ -191,27 +191,32 @@ async def set_setting(key: str, value: str) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             """
-            INSERT INTO settings (key, value) VALUES (?, ?)
+            INSERT INTO settings (key, value)
+            VALUES (?, ?)
             ON CONFLICT(key) DO UPDATE SET value = excluded.value
             """,
             (key, value),
         )
         await db.commit()
+
+
 async def get_referrals_count(user_id: int) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ?", (user_id,)) as cursor:
+        async with db.execute(
+            "SELECT COUNT(*) FROM users WHERE referrer_id = ?", (user_id,)
+        ) as cursor:
             result = await cursor.fetchone()
             return result[0] if result else 0
+
+
 async def add_profit(user_id: int, amount: float):
     async with aiosqlite.connect(DB_PATH) as db:
-        # Автоматически создаем запись пользователя, если его еще нет в базе
         await db.execute(
             "INSERT OR IGNORE INTO users (user_id, profit) VALUES (?, 0)",
-            (user_id,)
+            (user_id,),
         )
-        # Начисляем профит
         await db.execute(
             "UPDATE users SET profit = COALESCE(profit, 0) + ? WHERE user_id = ?",
-            (amount, user_id)
+            (amount, user_id),
         )
         await db.commit()
