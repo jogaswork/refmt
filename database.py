@@ -197,3 +197,10 @@ async def get_referrals_count(user_id: int) -> int:
         async with db.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ?", (user_id,)) as cursor:
             result = await cursor.fetchone()
             return result[0] if result else 0
+async def add_profit(user_id: int, amount: float):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE users SET profit = COALESCE(profit, 0) + ? WHERE user_id = ?",
+            (amount, user_id)
+        )
+        await db.commit()
