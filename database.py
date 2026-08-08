@@ -77,12 +77,17 @@ async def add_user(
 ) -> None:
     joined_at = datetime.datetime.utcnow().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
+await db.execute(
             """
-            INSERT OR IGNORE INTO users (user_id, username, first_name, referrer_id, joined_at)
+            INSERT INTO users (user_id, username, first_name, referrer_id, joined_at)
             VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                username = excluded.username,
+                first_name = excluded.first_name,
+                referrer_id = COALESCE(users.referrer_id, excluded.referrer_id)
             """,
             (user_id, username, first_name, referrer_id, joined_at),
+        )
         )
         await db.commit()
 
