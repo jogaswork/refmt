@@ -192,3 +192,8 @@ async def set_setting(key: str, value: str) -> None:
             (key, value),
         )
         await db.commit()
+async def get_referrals_count(user_id: int) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ?", (user_id,)) as cursor:
+            result = await cursor.fetchone()
+            return result[0] if result else 0
