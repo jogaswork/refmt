@@ -88,7 +88,6 @@ await db.execute(
             """,
             (user_id, username, first_name, referrer_id, joined_at),
         )
-        )
         await db.commit()
 
 
