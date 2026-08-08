@@ -19,4 +19,4 @@ ADMIN_IDS: list[int] = [
 
 DEFAULT_GROUP_LINK: str = os.getenv("GROUP_LINK", "Ссылка пока не настроена")
 
-DB_PATH: str = os.getenv("DB_PATH", "bot.db")
+DB_PATH: str = os.getenv("DB_PATH", "/app/data/bot.db")
