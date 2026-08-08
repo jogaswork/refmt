@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT,
     first_name TEXT,
     referrer_id INTEGER,
-    joined_at TEXT
+    joined_at TEXT,
+    profit REAL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS applications (
