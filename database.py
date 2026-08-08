@@ -200,6 +200,12 @@ async def get_referrals_count(user_id: int) -> int:
             return result[0] if result else 0
 async def add_profit(user_id: int, amount: float):
     async with aiosqlite.connect(DB_PATH) as db:
+        # Автоматически создаем запись пользователя, если его еще нет в базе
+        await db.execute(
+            "INSERT OR IGNORE INTO users (user_id, profit) VALUES (?, 0)",
+            (user_id,)
+        )
+        # Начисляем профит
         await db.execute(
             "UPDATE users SET profit = COALESCE(profit, 0) + ? WHERE user_id = ?",
             (amount, user_id)
