@@ -78,7 +78,7 @@ def format_rubles(amount: float) -> str:
 
 def format_profile(user: dict[str, Any], referrals_count: int) -> str:
     """Собирает текст сообщения для вкладки «Профиль»."""
-    profits = user.get("profits") or 0
+    profits = user.get("profit") or 0
     joined_at_raw = user.get("joined_at")
     days = days_in_bot(joined_at_raw)
 
