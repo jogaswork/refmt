@@ -2,11 +2,13 @@
 Обработчики пользовательского сценария:
 /start -> подача заявки -> уведомление админов; реферальная система.
 """
-from aiogram.types import FSInputFile
+from html import escape as html_escape
+from pathlib import Path
+
 from aiogram import Bot, F, Router
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, FSInputFile, Message
 
 import database as db
 import keyboards as kb
@@ -15,6 +17,13 @@ from states import ApplicationForm
 from utils import format_profile, is_chat_member
 
 router = Router(name="user")
+
+# Абсолютный путь к папке с картинками — не зависит от того, откуда запущен bot.py
+IMAGES_DIR = Path(__file__).resolve().parent.parent / "images"
+
+# ID премиум-эмодзи, показывается вместо 🎉 в уведомлении рефовода о новом реферале.
+# Fallback-символ внутри тега используется у тех, кому Premium недоступен.
+NEW_REFERRAL_EMOJI_ID = "5458824569026532353"
 
 ANKET_TEXT = (
     "🚀 Перед тем, как начать зарабатывать миллионы, нужно ответить на несколько вопросов!\n\n"
@@ -49,19 +58,21 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
     # Уведомляем рефовода о новом реферале — только если пользователь
     # регистрируется впервые (иначе один и тот же реферал мог бы
     # "нафармить" уведомления повторными /start).
-if is_new_user and referrer_id is not None:
-        who = f"@{username}" if username else first_name
+    if is_new_user and referrer_id is not None:
+        who = html_escape(f"@{username}" if username else first_name)
         try:
             await bot.send_message(
                 referrer_id,
+                f'<tg-emoji emoji-id="{NEW_REFERRAL_EMOJI_ID}">🎉</tg-emoji> '
                 f"У вас новый реферал: {who}!\n"
                 "Как только он выйдет в первый профит, вам начислится 10%.",
             )
         except Exception:
-        pass
+            # Рефовод мог не запускать бота / заблокировать его — пропускаем
+            pass
 
     await message.answer(
-        f"Привет, {first_name}! Добро пожаловать в команду 🚀",
+        f"Привет, {html_escape(first_name)}! Добро пожаловать в команду 🚀",
         reply_markup=kb.start_application_inline(),
     )
     # Отдельным сообщением выставляем постоянное меню с реферальной системой
@@ -127,14 +138,15 @@ async def referral_system(message: Message, bot: Bot) -> None:
         "Для получения выплаты отпишите: @manzi_nx или @jogas_wor"
     )
 
-    # Путь к вашей картинке
-    photo = FSInputFile("images/111.jpg")
+    # Путь к картинке — абсолютный, не зависит от рабочей директории процесса
+    photo_path = IMAGES_DIR / "111.jpg"
 
-    # Отправка фото с текстом
-    await message.answer_photo(
-        photo=photo,
-        caption=text
-    )  # <-- Скобка должна быть с отступом 4 пробела!
+    try:
+        await message.answer_photo(photo=FSInputFile(photo_path), caption=text)
+    except Exception:
+        # Картинка могла быть перемещена/удалена — не роняем хендлер,
+        # отправляем хотя бы текст со ссылкой.
+        await message.answer(text)
 
 
 @router.message(F.text == "👤 Профиль")
