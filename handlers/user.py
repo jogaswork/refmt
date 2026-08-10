@@ -10,6 +10,7 @@ from aiogram.types import CallbackQuery, Message
 
 import database as db
 import keyboards as kb
+import asyncio
 from config import ADMIN_IDS
 from states import ApplicationForm
 from utils import format_profile, is_chat_member
@@ -162,3 +163,25 @@ async def show_profile(message: Message, bot: Bot) -> None:
 
     referrals_count = await db.get_referrals_count(user_id)
     await message.answer(format_profile(user, referrals_count))
+from aiogram.filters import Command
+from aiogram.types import Message
+
+# Если в user.py уже создан роутер ( router = Router() ), 
+# повторно создавать его не нужно — просто используйте существующий.
+
+@router.message(Command("dania"))
+async def dania_easter_egg(message: Message):
+    full_text = "вы нашли пасхалку от Джогаса"
+    
+    # Отправляем начальное сообщение с курсором
+    sent_message = await message.answer("▌")
+    
+    current_text = ""
+    for char in full_text:
+        current_text += char
+        # Обновляем текст с задержкой
+        await sent_message.edit_text(f"{current_text}▌")
+        await asyncio.sleep(0.15)
+        
+    # Печать завершена — убираем курсор
+    await sent_message.edit_text(current_text)
