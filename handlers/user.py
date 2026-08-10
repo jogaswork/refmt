@@ -10,7 +10,6 @@ from aiogram.types import CallbackQuery, Message
 
 import database as db
 import keyboards as kb
-import asyncio
 from config import ADMIN_IDS
 from states import ApplicationForm
 from utils import format_profile, is_chat_member
@@ -27,7 +26,7 @@ ANKET_TEXT = (
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, command: CommandObject, state: FSMContext) -> None:
+async def cmd_start(message: Message, command: CommandObject, state: FSMContext, bot: Bot) -> None:
     """Обработка команды /start, в т.ч. с реферальным payload вида /start 123456."""
     await state.clear()
 
@@ -43,8 +42,24 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
             if candidate != user_id:
                 referrer_id = candidate
 
-    if not await db.user_exists(user_id):
+    is_new_user = not await db.user_exists(user_id)
+    if is_new_user:
         await db.add_user(user_id, username, first_name, referrer_id)
+
+    # Уведомляем рефовода о новом реферале — только если пользователь
+    # регистрируется впервые (иначе один и тот же реферал мог бы
+    # "нафармить" уведомления повторными /start).
+    if is_new_user and referrer_id is not None:
+        who = f"@{username}" if username else first_name
+        try:
+            await bot.send_message(
+                referrer_id,
+                f"🎉 У вас новый реферал: {who}!\n"
+                "Как только он выйдет в первый профит, вам начислится 10%.",
+            )
+        except Exception:
+            # Рефовод мог не запускать бота / заблокировать его — пропускаем
+            pass
 
     await message.answer(
         f"Привет, {first_name}! Добро пожаловать в команду 🚀",
@@ -163,25 +178,3 @@ async def show_profile(message: Message, bot: Bot) -> None:
 
     referrals_count = await db.get_referrals_count(user_id)
     await message.answer(format_profile(user, referrals_count))
-from aiogram.filters import Command
-from aiogram.types import Message
-
-# Если в user.py уже создан роутер ( router = Router() ), 
-# повторно создавать его не нужно — просто используйте существующий.
-
-@router.message(Command("dania"))
-async def dania_easter_egg(message: Message):
-    full_text = "вы нашли пасхалку от Джогаса"
-    
-    # Отправляем начальное сообщение с курсором
-    sent_message = await message.answer("▌")
-    
-    current_text = ""
-    for char in full_text:
-        current_text += char
-        # Обновляем текст с задержкой
-        await sent_message.edit_text(f"{current_text}▌")
-        await asyncio.sleep(0.15)
-        
-    # Печать завершена — убираем курсор
-    await sent_message.edit_text(current_text)
