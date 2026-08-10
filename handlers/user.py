@@ -53,10 +53,10 @@ if is_new_user and referrer_id is not None:
     who = f"@{username}" if username else first_name
     try:
         await bot.send_message(
-            chat_id=referrer_id,
-            text=f'<tg-emoji emoji-id="5458824569026532353">🙂</tg-emoji> У вас новый реферал: {who}!\n'
+            referrer_id,
+            f'<tg-emoji emoji-id="5458824569026532353">🙂</tg-emoji> У вас новый реферал: {who}!\n'
             "Как только он выйдет в первый профит, вам начислится 10%.",
-            parse_mode="HTML",  # <-- Вот здесь он указывается!
+            parse_mode="HTML",
         )
     except Exception:
         pass
