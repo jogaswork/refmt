@@ -54,7 +54,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
         try:
             await bot.send_message(
                 referrer_id,
-                f"🎉 У вас новый реферал: {who}!\n"
+                f'<tg-emoji emoji-id="5458824569026532353">🙂</tg-emoji>' У вас новый реферал: {who}!\n"
                 "Как только он выйдет в первый профит, вам начислится 10%.",
             )
         except Exception:
