@@ -33,6 +33,15 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+
+CREATE TABLE IF NOT EXISTS bot_logs (
+    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    username TEXT,
+    event_type TEXT NOT NULL,
+    content TEXT,
+    created_at TEXT
+);
 """
 
 
@@ -207,6 +216,40 @@ async def get_referrals_count(user_id: int) -> int:
         ) as cursor:
             result = await cursor.fetchone()
             return result[0] if result else 0
+
+
+# ---------------------------------------------------------------------------
+# Логи действий пользователей
+# ---------------------------------------------------------------------------
+
+
+async def add_log(
+    user_id: Optional[int],
+    username: Optional[str],
+    event_type: str,
+    content: Optional[str],
+) -> None:
+    """Сохраняет одно действие пользователя (сообщение или нажатие кнопки)."""
+    created_at = datetime.datetime.utcnow().isoformat(sep=" ", timespec="seconds")
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO bot_logs (user_id, username, event_type, content, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (user_id, username, event_type, content, created_at),
+        )
+        await db.commit()
+
+
+async def get_recent_logs(limit: int = 50) -> list[dict[str, Any]]:
+    """Возвращает последние действия пользователей, от новых к старым."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT * FROM bot_logs ORDER BY log_id DESC LIMIT ?", (limit,)
+        )
+        rows = await cursor.fetchall()
+        return [_row_to_dict(cursor, row) for row in rows]
 
 
 async def add_profit(user_id: int, amount: float):
