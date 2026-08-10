@@ -49,17 +49,17 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
     # Уведомляем рефовода о новом реферале — только если пользователь
     # регистрируется впервые (иначе один и тот же реферал мог бы
     # "нафармить" уведомления повторными /start).
-    if is_new_user and referrer_id is not None:
-        who = f"@{username}" if username else first_name
-        try:
-            await bot.send_message(
-                referrer_id,
-                f'<tg-emoji emoji-id="5458824569026532353">🙂</tg-emoji>' У вас новый реферал: {who}!\n"
-                "Как только он выйдет в первый профит, вам начислится 10%.",
-            )
-        except Exception:
-            # Рефовод мог не запускать бота / заблокировать его — пропускаем
-            pass
+if is_new_user and referrer_id is not None:
+    who = f"@{username}" if username else first_name
+    try:
+        await bot.send_message(
+            chat_id=referrer_id,
+            text=f'<tg-emoji emoji-id="5458824569026532353">🙂</tg-emoji> У вас новый реферал: {who}!\n'
+            "Как только он выйдет в первый профит, вам начислится 10%.",
+            parse_mode="HTML",  # <-- Вот здесь он указывается!
+        )
+    except Exception:
+        pass
 
     await message.answer(
         f"Привет, {first_name}! Добро пожаловать в команду 🚀",
