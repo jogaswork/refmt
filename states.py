@@ -35,3 +35,27 @@ class ProfitAccrual(StatesGroup):
     waiting_for_user_id = State()
     waiting_for_amount = State()
 
+
+class MentorForm(StatesGroup):
+    """Добавление нового наставника администратором (по порядку: текст -> специализация -> условия)."""
+    waiting_for_name = State()
+    waiting_for_description = State()
+    waiting_for_specialization = State()
+    waiting_for_percent = State()
+    waiting_for_profit_count = State()
+
+
+class MentorEditText(StatesGroup):
+    """Редактирование текста «О наставнике» у существующего наставника."""
+    waiting_for_text = State()
+
+
+class MentorEditSpecialization(StatesGroup):
+    """Редактирование специализации у существующего наставника."""
+    waiting_for_selection = State()
+
+
+class MentorEditConditions(StatesGroup):
+    """Редактирование условий сотрудничества (процент, количество профитов)."""
+    waiting_for_percent = State()
+    waiting_for_profit_count = State()
