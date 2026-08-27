@@ -25,7 +25,7 @@ from states import (
 )
 from utils import format_mentor_card
 
-_MENTOR_SPEC_KEYS = {key for key, _ in MENTOR_SPECIALIZATIONS}
+_MENTOR_SPEC_KEYS = {key for key, _, _ in MENTOR_SPECIALIZATIONS}
 
 
 def _parse_percent(raw: str) -> Optional[float]:
