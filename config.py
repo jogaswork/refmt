@@ -20,3 +20,13 @@ ADMIN_IDS: list[int] = [
 DEFAULT_GROUP_LINK: str = os.getenv("GROUP_LINK", "Ссылка пока не настроена")
 
 DB_PATH: str = os.getenv("DB_PATH", "/app/data/bot.db")
+
+# Фиксированный каталог специализаций наставников: (ключ_для_бд, подпись_с_эмодзи).
+# Ключ хранится в БД (mentors.specialization, через запятую), подпись показывается пользователю.
+MENTOR_SPECIALIZATIONS: list[tuple[str, str]] = [
+    ("rest", "🏖 Отдых"),
+    ("trade", "📈 Трейд"),
+    ("escort", "💎 Эскорт"),
+    ("mreo", "📄 МРЭО"),
+    ("nft", "🖼 NFT"),
+]
