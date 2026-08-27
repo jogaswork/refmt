@@ -767,9 +767,17 @@ async def admin_mentor_delete_start(callback: CallbackQuery) -> None:
     await callback.message.answer(
         "Удалить этого наставника? Это действие необратимо, все закреплённые за ним "
         "пользователи будут откреплены.",
-        reply_markup=kb.admin_mentor_delete_confirm_kb(mentor_id),
-    )
-    await callback.answer()
-
-
 @router.callback_query(F.data.startswith("admin_mentor_delete_confirm:"))
+async def admin_mentor_delete_confirm(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+    
+    mentor_id = int(callback.data.split(":", 1)[1])
+    await db.delete_mentor(mentor_id)
+    await callback.answer("✅ Наставник удалён")
+    
+    mentors = await db.get_all_mentors()
+    await callback.message.edit_text(
+        "🎓 **Управление наставниками:**",
+        reply_markup=kb.admin_mentors_menu_kb(mentors, 1)
+    )
