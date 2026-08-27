@@ -8,6 +8,8 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 
+from config import MENTOR_SPECIALIZATIONS
+
 
 # ---------------------------------------------------------------------------
 # Пользовательские клавиатуры
@@ -57,6 +59,65 @@ def skip_reason_kb() -> InlineKeyboardMarkup:
 
 
 # ---------------------------------------------------------------------------
+# Наставники — пользовательские клавиатуры
+# ---------------------------------------------------------------------------
+
+def profile_kb() -> InlineKeyboardMarkup:
+    """Кнопка под текстом вкладки «Профиль» — переход к наставникам."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🎓 Наставники", callback_data="mentors_list")]
+        ]
+    )
+
+
+def mentors_list_kb(mentors: list[dict]) -> InlineKeyboardMarkup:
+    """Список наставников (по кнопке на каждого) + навигация."""
+    rows = [
+        [InlineKeyboardButton(text=m["name"], callback_data=f"mentor_view:{m['mentor_id']}")]
+        for m in mentors
+    ]
+    rows.append(
+        [
+            InlineKeyboardButton(text="⬅️ Назад", callback_data="mentors_back_to_profile"),
+            InlineKeyboardButton(text="🏠 Домой", callback_data="mentors_home"),
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def mentor_card_kb(mentor_id: int) -> InlineKeyboardMarkup:
+    """Карточка конкретного наставника: подать заявку + навигация."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Подать заявку", callback_data=f"mentor_apply:{mentor_id}")],
+            [
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="mentors_list"),
+                InlineKeyboardButton(text="🏠 Домой", callback_data="mentors_home"),
+            ],
+        ]
+    )
+
+
+def mentor_spec_toggle_kb(selected: set[str]) -> InlineKeyboardMarkup:
+    """
+    Клавиатура множественного выбора специализации наставника (для админки).
+    Выбранные пункты помечаются ✅. Используется и при создании, и при редактировании.
+    """
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=f"{'✅ ' if key in selected else ''}{label}",
+                callback_data=f"mentor_spec_toggle:{key}",
+            )
+        ]
+        for key, label in MENTOR_SPECIALIZATIONS
+    ]
+    rows.append([InlineKeyboardButton(text="Готово ➡️", callback_data="mentor_spec_done")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+# ---------------------------------------------------------------------------
 # Админ-клавиатуры
 # ---------------------------------------------------------------------------
 
@@ -77,12 +138,12 @@ def admin_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📋 Нерассмотренные заявки", callback_data="admin_pending")],
-            [InlineKeyboardButton(text="🎓 Наставники", callback_data="admin_mentors")],
             [InlineKeyboardButton(text="🔗 Настройка группы", callback_data="admin_group_setup")],
             [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
             [InlineKeyboardButton(text="👥 Пользователи (Рефералы)", callback_data="admin_users")],
             [InlineKeyboardButton(text="🔒 Чат для вкладки «Профиль»", callback_data="admin_profile_chat_setup")],
             [InlineKeyboardButton(text="💰 Начислить профит", callback_data="admin_add_profit")],
+            [InlineKeyboardButton(text="🎓 Наставники", callback_data="admin_mentors")],
             [InlineKeyboardButton(text="📝 Логи бота", callback_data="admin_logs")],
         ]
     )
@@ -93,5 +154,48 @@ def admin_back_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="admin_back")]
+        ]
+    )
+
+
+# ---------------------------------------------------------------------------
+# Наставники — админ-клавиатуры
+# ---------------------------------------------------------------------------
+
+def admin_mentors_menu_kb(mentors: list[dict]) -> InlineKeyboardMarkup:
+    """Список наставников в админке: редактировать/удалить каждого + добавить нового."""
+    rows = [
+        [
+            InlineKeyboardButton(text=f"✏️ {m['name']}", callback_data=f"admin_mentor_edit:{m['mentor_id']}"),
+            InlineKeyboardButton(text="🗑", callback_data=f"admin_mentor_delete:{m['mentor_id']}"),
+        ]
+        for m in mentors
+    ]
+    rows.append([InlineKeyboardButton(text="➕ Добавить наставника", callback_data="admin_mentor_add")])
+    rows.append([InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="admin_back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def admin_mentor_edit_menu_kb(mentor_id: int) -> InlineKeyboardMarkup:
+    """Меню редактирования конкретного наставника."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✏️ Изменить текст", callback_data=f"admin_mentor_edit_text:{mentor_id}")],
+            [InlineKeyboardButton(text="🏷 Изменить специализацию", callback_data=f"admin_mentor_edit_spec:{mentor_id}")],
+            [InlineKeyboardButton(text="💰 Изменить условия", callback_data=f"admin_mentor_edit_conditions:{mentor_id}")],
+            [InlineKeyboardButton(text="🗑 Удалить наставника", callback_data=f"admin_mentor_delete:{mentor_id}")],
+            [InlineKeyboardButton(text="⬅️ Назад к списку", callback_data="admin_mentors")],
+        ]
+    )
+
+
+def admin_mentor_delete_confirm_kb(mentor_id: int) -> InlineKeyboardMarkup:
+    """Подтверждение удаления наставника."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="❌ Да, удалить", callback_data=f"admin_mentor_delete_confirm:{mentor_id}"),
+                InlineKeyboardButton(text="Отмена", callback_data=f"admin_mentor_edit:{mentor_id}"),
+            ]
         ]
     )
