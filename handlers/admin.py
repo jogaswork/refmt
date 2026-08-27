@@ -605,18 +605,21 @@ async def mentor_spec_toggle(callback: CallbackQuery, state: FSMContext) -> None
 async def mentor_spec_done(callback: CallbackQuery, state: FSMContext) -> None:
     if not _is_admin(callback.from_user.id):
         return await callback.answer()
-
+    
+    await callback.answer()
     current_state = await state.get_state()
     data = await state.get_data()
     specialization = ",".join(data.get("spec_selected", []))
-
+    
     if current_state == MentorForm.waiting_for_specialization:
-        # Сценарий создания наставника: дальше — процент от профита.
         await state.set_state(MentorForm.waiting_for_percent)
-        await callback.message.answer(
-            "Специализация выбрана. Теперь введите процент от профита (например: 20):"
-        )
+        await callback.message.answer("Специализация выбрана. Теперь введите процент от профита (например: 20):")
     elif current_state == MentorEditSpecialization.waiting_for_selection:
+        mentor_id = data.get("mentor_id")
+        await state.clear()
+        if mentor_id is not None:
+            await db.update_mentor_specialization(mentor_id, specialization)
+            await callback.message.answer("✅ Специализации наставника успешно обновлены!", reply_markup=kb.admin_back_kb())
         # Сценарий редактирования: сразу сохраняем в БД.
         mentor_id = data.get("mentor_id")
         await state.clear()
