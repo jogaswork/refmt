@@ -791,4 +791,4 @@ async def process_admin_mentors(callback: CallbackQuery) -> None:
         reply_markup=kb.admin_mentors_menu_kb(mentors)
     )
     await callback.answer()
-    await callback.answer()
+
