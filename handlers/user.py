@@ -14,7 +14,7 @@ import database as db
 import keyboards as kb
 from config import ADMIN_IDS
 from states import ApplicationForm
-from utils import format_profile, is_chat_member
+from utils import format_mentor_card, format_profile, is_chat_member
 
 router = Router(name="user")
 
@@ -188,4 +188,98 @@ async def show_profile(message: Message, bot: Bot) -> None:
         user = await db.get_user(user_id)
 
     referrals_count = await db.get_referrals_count(user_id)
-    await message.answer(format_profile(user, referrals_count))
+    await message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
+
+
+# ---------------------------------------------------------------------------
+# Наставники
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data == "mentors_list")
+async def mentors_list(callback: CallbackQuery) -> None:
+    """Показ списка наставников по кнопке «🎓 Наставники» из вкладки «Профиль»."""
+    mentors = await db.get_all_mentors()
+
+    if not mentors:
+        await callback.message.answer("Пока нет доступных наставников. Загляните позже 🙏")
+        await callback.answer()
+        return
+
+    await callback.message.answer("🎓 Наставники", reply_markup=kb.mentors_list_kb(mentors))
+    await callback.answer()
+
+
+@router.callback_query(F.data == "mentors_back_to_profile")
+async def mentors_back_to_profile(callback: CallbackQuery) -> None:
+    """Кнопка «⬅️ Назад» из списка наставников — возврат к вкладке «Профиль»."""
+    user_id = callback.from_user.id
+
+    user = await db.get_user(user_id)
+    if user is None:
+        await db.add_user(user_id, callback.from_user.username, callback.from_user.first_name, None)
+        user = await db.get_user(user_id)
+
+    referrals_count = await db.get_referrals_count(user_id)
+    await callback.message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "mentors_home")
+async def mentors_home(callback: CallbackQuery) -> None:
+    """Кнопка «🏠 Домой» — выход из раздела наставников в главное меню."""
+    await callback.message.answer(
+        "🏠 Вы в главном меню. Используйте меню внизу экрана для навигации 👇"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("mentor_view:"))
+async def mentor_view(callback: CallbackQuery) -> None:
+    """Показ карточки конкретного наставника."""
+    mentor_id = int(callback.data.split(":", 1)[1])
+    mentor = await db.get_mentor(mentor_id)
+
+    if not mentor:
+        await callback.answer("Этот наставник больше недоступен.", show_alert=True)
+        return
+
+    await callback.message.answer(format_mentor_card(mentor), reply_markup=kb.mentor_card_kb(mentor_id))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("mentor_apply:"))
+async def mentor_apply(callback: CallbackQuery, bot: Bot) -> None:
+    """Пользователь нажал «✅ Подать заявку» — закрепляем его за наставником."""
+    mentor_id = int(callback.data.split(":", 1)[1])
+    mentor = await db.get_mentor(mentor_id)
+
+    if not mentor:
+        await callback.answer("Этот наставник больше недоступен.", show_alert=True)
+        return
+
+    user_id = callback.from_user.id
+    if not await db.user_exists(user_id):
+        await db.add_user(user_id, callback.from_user.username, callback.from_user.first_name, None)
+
+    await db.set_user_mentor(user_id, mentor_id)
+
+    await callback.message.answer(
+        f"✅ Вы закрепились за наставником <b>{html_escape(mentor['name'])}</b>!\n"
+        "Он свяжется с вами в ближайшее время."
+    )
+    await callback.answer("Готово ✅")
+
+    who = html_escape(
+        f"@{callback.from_user.username}" if callback.from_user.username
+        else (callback.from_user.first_name or str(user_id))
+    )
+    admin_text = (
+        f"🎓 Пользователь {who} (ID: {user_id}) закрепился за наставником "
+        f"«{html_escape(mentor['name'])}»."
+    )
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(admin_id, admin_text)
+        except Exception:
+            # Админ мог не запускать бота / заблокировать его — пропускаем
+            continue
