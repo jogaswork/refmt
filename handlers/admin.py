@@ -11,14 +11,29 @@ from aiogram.types import CallbackQuery, Message
 
 import database as db
 import keyboards as kb
-from config import ADMIN_IDS
+from config import ADMIN_IDS, MENTOR_SPECIALIZATIONS
 from states import (
     BroadcastForm,
     GroupLinkSetup,
+    MentorEditConditions,
+    MentorEditSpecialization,
+    MentorEditText,
+    MentorForm,
     ProfileChatSetup,
     ProfitAccrual,
     RejectReason,
 )
+from utils import format_mentor_card
+
+_MENTOR_SPEC_KEYS = {key for key, _ in MENTOR_SPECIALIZATIONS}
+
+
+def _parse_percent(raw: str) -> Optional[float]:
+    cleaned = raw.strip().replace(",", ".").replace("%", "")
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
 
 router = Router(name="admin")
 
@@ -446,4 +461,322 @@ async def show_logs(callback: CallbackQuery) -> None:
         await callback.message.answer(full_text[i : i + chunk_size])
 
     await callback.message.answer("⬆️ Логи выше.", reply_markup=kb.admin_back_kb())
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Наставники: список / добавление
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data == "admin_mentors")
+async def admin_mentors_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    await state.clear()
+    mentors = await db.get_all_mentors()
+    text = "🎓 Наставники:" if mentors else "🎓 Наставников пока нет. Добавьте первого!"
+    await callback.message.answer(text, reply_markup=kb.admin_mentors_menu_kb(mentors))
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin_mentor_add")
+async def admin_mentor_add_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    await state.set_state(MentorForm.waiting_for_name)
+    await callback.message.answer("Введите имя нового наставника (например: MORF):")
+    await callback.answer()
+
+
+@router.message(MentorForm.waiting_for_name)
+async def admin_mentor_add_name(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    name = (message.text or "").strip()
+    if not name:
+        await message.answer("Имя не может быть пустым. Введите имя ещё раз:")
+        return
+
+    await state.update_data(name=name)
+    await state.set_state(MentorForm.waiting_for_description)
+    await message.answer(
+        "Теперь отправьте текст «О наставнике» одним сообщением "
+        "(описание, опыт, контакт и т.д. — этот текст полностью попадёт в карточку наставника):"
+    )
+
+
+@router.message(MentorForm.waiting_for_description)
+async def admin_mentor_add_description(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    description = message.text or ""
+    await state.update_data(description=description, spec_selected=[])
+    await state.set_state(MentorForm.waiting_for_specialization)
+    await message.answer(
+        "Выберите специализацию наставника (можно несколько), затем нажмите «Готово ➡️»:",
+        reply_markup=kb.mentor_spec_toggle_kb(set()),
+    )
+
+
+@router.message(MentorForm.waiting_for_percent)
+async def admin_mentor_add_percent(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    percent = _parse_percent(message.text or "")
+    if percent is None:
+        await message.answer("Нужно ввести число, например 20. Попробуйте ещё раз:")
+        return
+
+    await state.update_data(percent=percent)
+    await state.set_state(MentorForm.waiting_for_profit_count)
+    await message.answer("Теперь введите количество профитов (целое число, например: 5):")
+
+
+@router.message(MentorForm.waiting_for_profit_count)
+async def admin_mentor_add_profit_count(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    raw = (message.text or "").strip()
+    if not raw.lstrip("-").isdigit():
+        await message.answer("Нужно ввести целое число, например 5. Попробуйте ещё раз:")
+        return
+
+    profit_count = int(raw)
+    data = await state.get_data()
+    name = data.get("name", "")
+    description = data.get("description", "")
+    specialization = ",".join(data.get("spec_selected", []))
+    percent = data.get("percent", 0)
+    await state.clear()
+
+    mentor_id = await db.create_mentor(name, description, specialization, percent, profit_count)
+    mentor = await db.get_mentor(mentor_id)
+
+    await message.answer(
+        "✅ Наставник добавлен!\n\n" + format_mentor_card(mentor),
+        reply_markup=kb.admin_back_kb(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Наставники: выбор специализации (общий шаг для создания и редактирования)
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data.startswith("mentor_spec_toggle:"))
+async def mentor_spec_toggle(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    current_state = await state.get_state()
+    if current_state not in (
+        MentorForm.waiting_for_specialization,
+        MentorEditSpecialization.waiting_for_selection,
+    ):
+        await callback.answer()
+        return
+
+    key = callback.data.split(":", 1)[1]
+    if key not in _MENTOR_SPEC_KEYS:
+        await callback.answer()
+        return
+
+    data = await state.get_data()
+    selected = set(data.get("spec_selected", []))
+    if key in selected:
+        selected.discard(key)
+    else:
+        selected.add(key)
+    await state.update_data(spec_selected=list(selected))
+
+    try:
+        await callback.message.edit_reply_markup(reply_markup=kb.mentor_spec_toggle_kb(selected))
+    except Exception:
+        pass
+    await callback.answer()
+
+
+@router.callback_query(F.data == "mentor_spec_done")
+async def mentor_spec_done(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    current_state = await state.get_state()
+    data = await state.get_data()
+    specialization = ",".join(data.get("spec_selected", []))
+
+    if current_state == MentorForm.waiting_for_specialization:
+        # Сценарий создания наставника: дальше — процент от профита.
+        await state.set_state(MentorForm.waiting_for_percent)
+        await callback.message.answer(
+            "Специализация выбрана. Теперь введите процент от профита (например: 20):"
+        )
+    elif current_state == MentorEditSpecialization.waiting_for_selection:
+        # Сценарий редактирования: сразу сохраняем в БД.
+        mentor_id = data.get("mentor_id")
+        await state.clear()
+        if mentor_id is not None:
+            await db.update_mentor_specialization(mentor_id, specialization)
+            await callback.message.answer(
+                "✅ Специализация обновлена!",
+                reply_markup=kb.admin_mentor_edit_menu_kb(mentor_id),
+            )
+
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Наставники: редактирование существующего
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data.startswith("admin_mentor_edit:"))
+async def admin_mentor_edit_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    await state.clear()
+    mentor_id = int(callback.data.split(":", 1)[1])
+    mentor = await db.get_mentor(mentor_id)
+    if not mentor:
+        await callback.answer("Наставник не найден.", show_alert=True)
+        return
+
+    await callback.message.answer(
+        format_mentor_card(mentor), reply_markup=kb.admin_mentor_edit_menu_kb(mentor_id)
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin_mentor_edit_text:"))
+async def admin_mentor_edit_text_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    mentor_id = int(callback.data.split(":", 1)[1])
+    await state.update_data(mentor_id=mentor_id)
+    await state.set_state(MentorEditText.waiting_for_text)
+    await callback.message.answer("Отправьте новый текст «О наставнике» одним сообщением:")
+    await callback.answer()
+
+
+@router.message(MentorEditText.waiting_for_text)
+async def admin_mentor_edit_text_process(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    data = await state.get_data()
+    mentor_id = data.get("mentor_id")
+    await state.clear()
+
+    if mentor_id is None:
+        return
+
+    await db.update_mentor_description(mentor_id, message.text or "")
+    await message.answer("✅ Текст обновлён!", reply_markup=kb.admin_mentor_edit_menu_kb(mentor_id))
+
+
+@router.callback_query(F.data.startswith("admin_mentor_edit_spec:"))
+async def admin_mentor_edit_spec_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    mentor_id = int(callback.data.split(":", 1)[1])
+    mentor = await db.get_mentor(mentor_id)
+    if not mentor:
+        await callback.answer("Наставник не найден.", show_alert=True)
+        return
+
+    current = {k.strip() for k in (mentor.get("specialization") or "").split(",") if k.strip()}
+    await state.update_data(mentor_id=mentor_id, spec_selected=list(current))
+    await state.set_state(MentorEditSpecialization.waiting_for_selection)
+    await callback.message.answer(
+        "Выберите специализацию (можно несколько), затем нажмите «Готово ➡️»:",
+        reply_markup=kb.mentor_spec_toggle_kb(current),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin_mentor_edit_conditions:"))
+async def admin_mentor_edit_conditions_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    mentor_id = int(callback.data.split(":", 1)[1])
+    await state.update_data(mentor_id=mentor_id)
+    await state.set_state(MentorEditConditions.waiting_for_percent)
+    await callback.message.answer("Введите новый процент от профита (например: 20):")
+    await callback.answer()
+
+
+@router.message(MentorEditConditions.waiting_for_percent)
+async def admin_mentor_edit_conditions_percent(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    percent = _parse_percent(message.text or "")
+    if percent is None:
+        await message.answer("Нужно ввести число, например 20. Попробуйте ещё раз:")
+        return
+
+    await state.update_data(percent=percent)
+    await state.set_state(MentorEditConditions.waiting_for_profit_count)
+    await message.answer("Теперь введите количество профитов (целое число, например: 5):")
+
+
+@router.message(MentorEditConditions.waiting_for_profit_count)
+async def admin_mentor_edit_conditions_count(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    raw = (message.text or "").strip()
+    if not raw.lstrip("-").isdigit():
+        await message.answer("Нужно ввести целое число, например 5. Попробуйте ещё раз:")
+        return
+
+    profit_count = int(raw)
+    data = await state.get_data()
+    mentor_id = data.get("mentor_id")
+    percent = data.get("percent", 0)
+    await state.clear()
+
+    if mentor_id is None:
+        return
+
+    await db.update_mentor_conditions(mentor_id, percent, profit_count)
+    await message.answer("✅ Условия обновлены!", reply_markup=kb.admin_mentor_edit_menu_kb(mentor_id))
+
+
+# ---------------------------------------------------------------------------
+# Наставники: удаление
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data.startswith("admin_mentor_delete:"))
+async def admin_mentor_delete_start(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    mentor_id = int(callback.data.split(":", 1)[1])
+    await callback.message.answer(
+        "Удалить этого наставника? Это действие необратимо, все закреплённые за ним "
+        "пользователи будут откреплены.",
+        reply_markup=kb.admin_mentor_delete_confirm_kb(mentor_id),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin_mentor_delete_confirm:"))
+async def admin_mentor_delete_confirm(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    mentor_id = int(callback.data.split(":", 1)[1])
+    await db.delete_mentor(mentor_id)
+
+    mentors = await db.get_all_mentors()
+    await callback.message.answer("🗑 Наставник удалён.", reply_markup=kb.admin_mentors_menu_kb(mentors))
     await callback.answer()
