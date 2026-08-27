@@ -476,7 +476,7 @@ async def admin_mentors_menu(callback: CallbackQuery, state: FSMContext) -> None
     await state.clear()
     mentors = await db.get_all_mentors()
     text = "🎓 Наставники:" if mentors else "🎓 Наставников пока нет. Добавьте первого!"
-    await callback.message.answer(text, reply_markup=kb.admin_mentors_menu_kb(mentors, 1))
+    await callback.message.answer(text, reply_markup=kb.admin_mentors_menu_kb(mentors))
     await callback.answer()
 
 
@@ -605,21 +605,18 @@ async def mentor_spec_toggle(callback: CallbackQuery, state: FSMContext) -> None
 async def mentor_spec_done(callback: CallbackQuery, state: FSMContext) -> None:
     if not _is_admin(callback.from_user.id):
         return await callback.answer()
-    
-    await callback.answer()
+
     current_state = await state.get_state()
     data = await state.get_data()
     specialization = ",".join(data.get("spec_selected", []))
-    
+
     if current_state == MentorForm.waiting_for_specialization:
+        # Сценарий создания наставника: дальше — процент от профита.
         await state.set_state(MentorForm.waiting_for_percent)
-        await callback.message.answer("Специализация выбрана. Теперь введите процент от профита (например: 20):")
+        await callback.message.answer(
+            "Специализация выбрана. Теперь введите процент от профита (например: 20):"
+        )
     elif current_state == MentorEditSpecialization.waiting_for_selection:
-        mentor_id = data.get("mentor_id")
-        await state.clear()
-        if mentor_id is not None:
-            await db.update_mentor_specialization(mentor_id, specialization)
-            await callback.message.answer("✅ Специализации наставника успешно обновлены!", reply_markup=kb.admin_back_kb())
         # Сценарий редактирования: сразу сохраняем в БД.
         mentor_id = data.get("mentor_id")
         await state.clear()
@@ -757,25 +754,29 @@ async def admin_mentor_edit_conditions_count(message: Message, state: FSMContext
 # ---------------------------------------------------------------------------
 # Наставники: удаление
 # ---------------------------------------------------------------------------
-mentor_id = await db.create_mentor(name, description, specialization, percent, profit_count)
-    mentor = await db.get_mentor(mentor_id)
-    await message.answer(
-        "✅ Наставник добавлен!\n\n" + format_mentor_card(mentor),
-        reply_markup=kb.admin_back_kb()
+
+@router.callback_query(F.data.startswith("admin_mentor_delete:"))
+async def admin_mentor_delete_start(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    mentor_id = int(callback.data.split(":", 1)[1])
+    await callback.message.answer(
+        "Удалить этого наставника? Это действие необратимо, все закреплённые за ним "
+        "пользователи будут откреплены.",
+        reply_markup=kb.admin_mentor_delete_confirm_kb(mentor_id),
     )
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("admin_mentor_delete_confirm:"))
 async def admin_mentor_delete_confirm(callback: CallbackQuery) -> None:
     if not _is_admin(callback.from_user.id):
         return await callback.answer()
-    
+
     mentor_id = int(callback.data.split(":", 1)[1])
     await db.delete_mentor(mentor_id)
-    await callback.answer("✅ Наставник удалён")
-    
+
     mentors = await db.get_all_mentors()
-    await callback.message.edit_text(
-        "🎓 **Управление наставниками:**",
-        reply_markup=kb.admin_mentors_menu_kb(mentors, 1)
-    )
+    await callback.message.answer("🗑 Наставник удалён.", reply_markup=kb.admin_mentors_menu_kb(mentors))
+    await callback.answer()
