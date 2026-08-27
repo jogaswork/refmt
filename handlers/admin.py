@@ -476,7 +476,7 @@ async def admin_mentors_menu(callback: CallbackQuery, state: FSMContext) -> None
     await state.clear()
     mentors = await db.get_all_mentors()
     text = "🎓 Наставники:" if mentors else "🎓 Наставников пока нет. Добавьте первого!"
-    await callback.message.answer(text, reply_markup=kb.admin_mentors_menu_kb(mentors))
+    await callback.message.answer(text, reply_markup=kb.admin_mentors_menu_kb(mentors, 1))
     await callback.answer()
 
 
