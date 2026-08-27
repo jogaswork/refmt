@@ -780,3 +780,15 @@ async def admin_mentor_delete_confirm(callback: CallbackQuery) -> None:
     mentors = await db.get_all_mentors()
     await callback.message.answer("🗑 Наставник удалён.", reply_markup=kb.admin_mentors_menu_kb(mentors))
     await callback.answer()
+@router.callback_query(F.data == "admin_mentors")
+async def process_admin_mentors(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+    
+    mentors = await db.get_all_mentors()
+    await callback.message.edit_text(
+        "🎓 **Управление наставниками:**",
+        reply_markup=kb.admin_mentors_menu_kb(mentors)
+    )
+    await callback.answer()
+    await callback.answer()
