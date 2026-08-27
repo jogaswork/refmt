@@ -5,12 +5,17 @@
 """
 import datetime
 import logging
+from html import escape as html_escape
 from typing import Any, Optional
 
 from aiogram import Bot
 from aiogram.enums import ChatMemberStatus
 
+from config import MENTOR_SPECIALIZATIONS
+
 logger = logging.getLogger(__name__)
+
+_SPEC_LABELS: dict[str, str] = dict(MENTOR_SPECIALIZATIONS)
 
 # Статусы участника чата, которые считаем «пользователь состоит в чате».
 # 'left' (вышел) и 'kicked' (исключён) сюда не входят.
@@ -92,4 +97,33 @@ def format_profile(user: dict[str, Any], referrals_count: int) -> str:
         f"💰 Сумма профитов: <b>{format_rubles(profits)} ₽</b>\n"
         f"👥 Привлечено рефералов: <b>{referrals_count}</b>\n"
         f"📅 Вы с нами: <b>{days}</b> дн. (дата регистрации: {joined_display})"
+    )
+
+
+def specialization_keys_to_labels(raw: Optional[str]) -> list[str]:
+    """Превращает 'rest,trade' из БД в список подписей вида ['🏖 Отдых', '📈 Трейд']."""
+    if not raw:
+        return []
+    keys = [key.strip() for key in raw.split(",") if key.strip()]
+    return [_SPEC_LABELS.get(key, key) for key in keys]
+
+
+def format_mentor_card(mentor: dict[str, Any]) -> str:
+    """Собирает текст карточки наставника (профиль наставника с условиями сотрудничества)."""
+    spec_labels = specialization_keys_to_labels(mentor.get("specialization"))
+    spec_display = " • ".join(spec_labels) if spec_labels else "не указана"
+
+    percent = mentor.get("profit_percent") or 0
+    count = mentor.get("profit_count") or 0
+    description = mentor.get("description") or "—"
+    name = mentor.get("name") or "—"
+
+    return (
+        "👤 <b>Наставник</b>\n\n"
+        f"👤 Профиль: <b>{html_escape(str(name))}</b>\n\n"
+        f"ℹ️ О наставнике:\n{html_escape(str(description))}\n\n"
+        f"🏷 Специализация:\n{spec_display}\n\n"
+        "💰 Условия сотрудничества:\n"
+        f"• Процент от профита: {percent:g}%\n"
+        f"• Количество профитов: {int(count)}"
     )
