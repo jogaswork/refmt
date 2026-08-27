@@ -59,3 +59,4 @@ class MentorEditConditions(StatesGroup):
     """Редактирование условий сотрудничества (процент, количество профитов)."""
     waiting_for_percent = State()
     waiting_for_profit_count = State()
+
