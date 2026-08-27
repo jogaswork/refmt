@@ -15,7 +15,7 @@ from config import MENTOR_SPECIALIZATIONS
 
 logger = logging.getLogger(__name__)
 
-_SPEC_LABELS: dict[str, str] = dict(MENTOR_SPECIALIZATIONS)
+_SPEC_LABELS: dict[str, str] = {key: display_label for key, _, display_label in MENTOR_SPECIALIZATIONS}
 
 # Статусы участника чата, которые считаем «пользователь состоит в чате».
 # 'left' (вышел) и 'kicked' (исключён) сюда не входят.

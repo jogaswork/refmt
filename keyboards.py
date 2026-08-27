@@ -107,11 +107,11 @@ def mentor_spec_toggle_kb(selected: set[str]) -> InlineKeyboardMarkup:
     rows = [
         [
             InlineKeyboardButton(
-                text=f"{'✅ ' if key in selected else ''}{label}",
+                text=f"{'✅ ' if key in selected else ''}{button_label}",
                 callback_data=f"mentor_spec_toggle:{key}",
             )
         ]
-        for key, label in MENTOR_SPECIALIZATIONS
+        for key, button_label, _ in MENTOR_SPECIALIZATIONS
     ]
     rows.append([InlineKeyboardButton(text="Готово ➡️", callback_data="mentor_spec_done")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
