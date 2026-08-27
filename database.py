@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
     first_name TEXT,
     referrer_id INTEGER,
     joined_at TEXT,
-    profit REAL DEFAULT 0
+    profit REAL DEFAULT 0,
+    mentor_id INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS applications (
@@ -42,6 +43,16 @@ CREATE TABLE IF NOT EXISTS bot_logs (
     content TEXT,
     created_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS mentors (
+    mentor_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    specialization TEXT DEFAULT '',
+    profit_percent REAL DEFAULT 0,
+    profit_count INTEGER DEFAULT 0,
+    created_at TEXT
+);
 """
 
 
@@ -58,6 +69,14 @@ async def init_db() -> None:
                 "INSERT INTO settings (key, value) VALUES ('group_link', ?)",
                 (DEFAULT_GROUP_LINK,),
             )
+            await db.commit()
+
+        # Миграция для баз, созданных до появления наставников:
+        # добавляем users.mentor_id, если его ещё нет.
+        cursor = await db.execute("PRAGMA table_info(users)")
+        columns = [col[1] for col in await cursor.fetchall()]
+        if "mentor_id" not in columns:
+            await db.execute("ALTER TABLE users ADD COLUMN mentor_id INTEGER")
             await db.commit()
 
 
@@ -262,4 +281,85 @@ async def add_profit(user_id: int, amount: float):
             "UPDATE users SET profit = COALESCE(profit, 0) + ? WHERE user_id = ?",
             (amount, user_id),
         )
+        await db.commit()
+
+
+async def set_user_mentor(user_id: int, mentor_id: int) -> None:
+    """Закрепляет пользователя за наставником (перезаписывает предыдущего, если был)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE users SET mentor_id = ? WHERE user_id = ?", (mentor_id, user_id)
+        )
+        await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Наставники
+# ---------------------------------------------------------------------------
+
+
+async def create_mentor(
+    name: str,
+    description: str,
+    specialization: str,
+    profit_percent: float,
+    profit_count: int,
+) -> int:
+    created_at = datetime.datetime.utcnow().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """
+            INSERT INTO mentors (name, description, specialization, profit_percent, profit_count, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (name, description, specialization, profit_percent, profit_count, created_at),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def get_mentor(mentor_id: int) -> Optional[dict[str, Any]]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT * FROM mentors WHERE mentor_id = ?", (mentor_id,))
+        row = await cursor.fetchone()
+        return _row_to_dict(cursor, row) if row else None
+
+
+async def get_all_mentors() -> list[dict[str, Any]]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT * FROM mentors ORDER BY mentor_id ASC")
+        rows = await cursor.fetchall()
+        return [_row_to_dict(cursor, row) for row in rows]
+
+
+async def update_mentor_description(mentor_id: int, description: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE mentors SET description = ? WHERE mentor_id = ?", (description, mentor_id)
+        )
+        await db.commit()
+
+
+async def update_mentor_specialization(mentor_id: int, specialization: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE mentors SET specialization = ? WHERE mentor_id = ?", (specialization, mentor_id)
+        )
+        await db.commit()
+
+
+async def update_mentor_conditions(mentor_id: int, profit_percent: float, profit_count: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE mentors SET profit_percent = ?, profit_count = ? WHERE mentor_id = ?",
+            (profit_percent, profit_count, mentor_id),
+        )
+        await db.commit()
+
+
+async def delete_mentor(mentor_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Отвязываем пользователей, закреплённых за удаляемым наставником.
+        await db.execute("UPDATE users SET mentor_id = NULL WHERE mentor_id = ?", (mentor_id,))
+        await db.execute("DELETE FROM mentors WHERE mentor_id = ?", (mentor_id,))
         await db.commit()
