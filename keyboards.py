@@ -144,6 +144,8 @@ def admin_menu() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="🔒 Чат для вкладки «Профиль»", callback_data="admin_profile_chat_setup")],
             [InlineKeyboardButton(text="💰 Начислить профит", callback_data="admin_add_profit")],
             [InlineKeyboardButton(text="🎓 Наставники", callback_data="admin_mentors")],
+            [InlineKeyboardButton(text="🚫 Бан / разбан пользователя", callback_data="admin_ban_user")],
+            [InlineKeyboardButton(text="✉️ Сообщение одному пользователю", callback_data="admin_message_user")],
             [InlineKeyboardButton(text="📝 Логи бота", callback_data="admin_logs")],
         ]
     )
@@ -197,5 +199,31 @@ def admin_mentor_delete_confirm_kb(mentor_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="❌ Да, удалить", callback_data=f"admin_mentor_delete_confirm:{mentor_id}"),
                 InlineKeyboardButton(text="Отмена", callback_data=f"admin_mentor_edit:{mentor_id}"),
             ]
+        ]
+    )
+
+
+# ---------------------------------------------------------------------------
+# Бан пользователей — админ-клавиатура
+# ---------------------------------------------------------------------------
+
+def admin_ban_action_kb(user_id: int, is_banned: bool) -> InlineKeyboardMarkup:
+    """
+    Кнопка действия над конкретным пользователем: показывает «Забанить», если
+    он сейчас не забанен, и «Разбанить» — если уже забанен (плюс отмена).
+    """
+    if is_banned:
+        action_button = InlineKeyboardButton(
+            text="✅ Разбанить", callback_data=f"admin_unban_confirm:{user_id}"
+        )
+    else:
+        action_button = InlineKeyboardButton(
+            text="🚫 Забанить", callback_data=f"admin_ban_confirm:{user_id}"
+        )
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [action_button],
+            [InlineKeyboardButton(text="Отмена", callback_data="admin_back")],
         ]
     )

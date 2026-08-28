@@ -21,6 +21,9 @@ _SPEC_LABELS: dict[str, str] = {key: display_label for key, _, display_label in 
 # текст кнопок и т.п. (см. specialization_keys_to_plain_labels).
 _SPEC_PLAIN_LABELS: dict[str, str] = {key: button_label for key, button_label, _ in MENTOR_SPECIALIZATIONS}
 
+# Через сколько секунд после отклонения заявки можно подать новую (антиспам).
+APPLICATION_COOLDOWN_SECONDS = 60
+
 # Статусы участника чата, которые считаем «пользователь состоит в чате».
 # 'left' (вышел) и 'kicked' (исключён) сюда не входят.
 _ACTIVE_MEMBER_STATUSES = {
@@ -83,6 +86,43 @@ def days_in_bot(joined_at_raw: Optional[str]) -> int:
 def format_rubles(amount: float) -> str:
     """Форматирует сумму в рублях с разделением разрядов пробелом: 12345 -> '12 345'."""
     return f"{amount:,.0f}".replace(",", " ")
+
+
+def application_eligibility(latest_application: Optional[dict[str, Any]]) -> tuple[bool, Optional[str]]:
+    """
+    Определяет, может ли пользователь подать новую заявку прямо сейчас.
+
+    Возвращает (can_apply, blocking_message):
+    - если заявка уже принята — подавать больше нельзя (навсегда);
+    - если заявка на рассмотрении — подавать нельзя, пока не решат текущую;
+    - если заявка отклонена — подавать нельзя ближайшую минуту после отказа (антиспам),
+      дальше — можно;
+    - если заявок ещё не было — можно.
+    """
+    if latest_application is None:
+        return True, None
+
+    status = latest_application.get("status")
+
+    if status == "accepted":
+        return False, "🎉 Ваша заявка уже принята, вы в команде! Повторно подавать не нужно."
+
+    if status == "pending":
+        return False, "⏳ Ваша заявка уже на рассмотрении. Дождитесь решения администрации."
+
+    if status == "rejected":
+        decided_raw = latest_application.get("decided_at") or latest_application.get("created_at")
+        decided_at = _parse_joined_at(decided_raw)
+        if decided_at is not None:
+            elapsed = (datetime.datetime.utcnow() - decided_at).total_seconds()
+            remaining = APPLICATION_COOLDOWN_SECONDS - elapsed
+            if remaining > 0:
+                wait_seconds = int(remaining) + 1
+                return False, f"⏳ Вы сможете подать заявку заново через {wait_seconds} сек."
+        return True, None
+
+    # Неизвестный/прочий статус — по умолчанию не блокируем.
+    return True, None
 
 
 def format_profile(user: dict[str, Any], referrals_count: int) -> str:

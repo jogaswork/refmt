@@ -36,6 +36,17 @@ class ProfitAccrual(StatesGroup):
     waiting_for_amount = State()
 
 
+class BanUser(StatesGroup):
+    """Бан / разбан пользователя администратором по ID."""
+    waiting_for_user_id = State()
+
+
+class PersonalMessage(StatesGroup):
+    """Отправка сообщения одному конкретному пользователю по его ID."""
+    waiting_for_user_id = State()
+    waiting_for_message = State()
+
+
 class MentorForm(StatesGroup):
     """Добавление нового наставника администратором (по порядку: текст -> специализация -> условия)."""
     waiting_for_name = State()

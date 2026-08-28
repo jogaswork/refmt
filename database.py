@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS users (
     referrer_id INTEGER,
     joined_at TEXT,
     profit REAL DEFAULT 0,
-    mentor_id INTEGER
+    mentor_id INTEGER,
+    banned INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS applications (
@@ -27,7 +28,8 @@ CREATE TABLE IF NOT EXISTS applications (
     text TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     reason TEXT,
-    created_at TEXT
+    created_at TEXT,
+    decided_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -77,6 +79,18 @@ async def init_db() -> None:
         columns = [col[1] for col in await cursor.fetchall()]
         if "mentor_id" not in columns:
             await db.execute("ALTER TABLE users ADD COLUMN mentor_id INTEGER")
+            await db.commit()
+
+        # Миграция для баз, созданных до появления бана: добавляем users.banned.
+        if "banned" not in columns:
+            await db.execute("ALTER TABLE users ADD COLUMN banned INTEGER DEFAULT 0")
+            await db.commit()
+
+        # Миграция для баз, созданных до появления кулдауна на повторную подачу заявки.
+        cursor = await db.execute("PRAGMA table_info(applications)")
+        app_columns = [col[1] for col in await cursor.fetchall()]
+        if "decided_at" not in app_columns:
+            await db.execute("ALTER TABLE applications ADD COLUMN decided_at TEXT")
             await db.commit()
 
 
@@ -192,13 +206,25 @@ async def get_pending_applications() -> list[dict[str, Any]]:
         return [_row_to_dict(cursor, row) for row in rows]
 
 
+async def get_latest_application(user_id: int) -> Optional[dict[str, Any]]:
+    """Последняя (по времени подачи) заявка пользователя — для проверки, можно ли подать новую."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT * FROM applications WHERE user_id = ? ORDER BY app_id DESC LIMIT 1",
+            (user_id,),
+        )
+        row = await cursor.fetchone()
+        return _row_to_dict(cursor, row) if row else None
+
+
 async def update_application_status(
     app_id: int, status: str, reason: Optional[str] = None
 ) -> None:
+    decided_at = datetime.datetime.utcnow().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE applications SET status = ?, reason = ? WHERE app_id = ?",
-            (status, reason, app_id),
+            "UPDATE applications SET status = ?, reason = ?, decided_at = ? WHERE app_id = ?",
+            (status, reason, decided_at, app_id),
         )
         await db.commit()
 
@@ -362,4 +388,28 @@ async def delete_mentor(mentor_id: int) -> None:
         # Отвязываем пользователей, закреплённых за удаляемым наставником.
         await db.execute("UPDATE users SET mentor_id = NULL WHERE mentor_id = ?", (mentor_id,))
         await db.execute("DELETE FROM mentors WHERE mentor_id = ?", (mentor_id,))
+        await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Бан пользователей
+# ---------------------------------------------------------------------------
+
+
+async def is_user_banned(user_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT banned FROM users WHERE user_id = ?", (user_id,))
+        row = await cursor.fetchone()
+        return bool(row[0]) if row else False
+
+
+async def set_user_banned(user_id: int, banned: bool) -> None:
+    """Банит/разбанивает пользователя. Создаёт запись пользователя, если её ещё нет."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO users (user_id, banned) VALUES (?, 0)", (user_id,)
+        )
+        await db.execute(
+            "UPDATE users SET banned = ? WHERE user_id = ?", (1 if banned else 0, user_id)
+        )
         await db.commit()
