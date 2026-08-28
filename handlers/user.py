@@ -333,10 +333,13 @@ async def menu_profile(callback: CallbackQuery, bot: Bot) -> None:
         await callback.message.answer_photo(
             photo=FSInputFile(photo_path),
             caption=format_profile(user, referrals_count),
+            parse_mode="HTML",
             reply_markup=kb.profile_kb(),
         )
     except Exception:
-        await callback.message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
+        await callback.message.answer(
+            format_profile(user, referrals_count), parse_mode="HTML", reply_markup=kb.profile_kb()
+        )
     await callback.answer()
 
 
@@ -387,10 +390,13 @@ async def mentors_back_to_profile(callback: CallbackQuery) -> None:
         await callback.message.answer_photo(
             photo=FSInputFile(photo_path),
             caption=format_profile(user, referrals_count),
+            parse_mode="HTML",
             reply_markup=kb.profile_kb(),
         )
     except Exception:
-        await callback.message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
+        await callback.message.answer(
+            format_profile(user, referrals_count), parse_mode="HTML", reply_markup=kb.profile_kb()
+        )
     await callback.answer()
 
 
