@@ -328,7 +328,15 @@ async def menu_profile(callback: CallbackQuery, bot: Bot) -> None:
         user = await db.get_user(user_id)
 
     referrals_count = await db.get_referrals_count(user_id)
-    await callback.message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
+    photo_path = IMAGES_DIR / "profile.png"
+    try:
+        await callback.message.answer_photo(
+            photo=FSInputFile(photo_path),
+            caption=format_profile(user, referrals_count),
+            reply_markup=kb.profile_kb(),
+        )
+    except Exception:
+        await callback.message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
     await callback.answer()
 
 
@@ -374,7 +382,15 @@ async def mentors_back_to_profile(callback: CallbackQuery) -> None:
         user = await db.get_user(user_id)
 
     referrals_count = await db.get_referrals_count(user_id)
-    await callback.message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
+    photo_path = IMAGES_DIR / "profile.png"
+    try:
+        await callback.message.answer_photo(
+            photo=FSInputFile(photo_path),
+            caption=format_profile(user, referrals_count),
+            reply_markup=kb.profile_kb(),
+        )
+    except Exception:
+        await callback.message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
     await callback.answer()
 
 
