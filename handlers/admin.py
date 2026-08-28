@@ -926,14 +926,19 @@ async def admin_message_user_send(message: Message, state: FSMContext) -> None:
         
 @router.callback_query(F.data == "admin_reset_profit")
 async def admin_reset_profit_start(callback: CallbackQuery, state: FSMContext):
+    # Если не админ — сразу гасим анимацию кнопки и показываем предупреждение
     if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("У вас нет прав!", show_alert=True)
         return
+
+    # Отвечаем Telegram в первую очередь, чтобы кнопка мгновенно отжала анимацию
+    await callback.answer()
+    
     await callback.message.edit_text(
         "Введите ID пользователя, которому нужно обнулить профит:",
         reply_markup=admin_back_kb(),
     )
     await state.set_state(ProfitReset.waiting_for_user_id)
-    await callback.answer()
 
 
 @router.message(ProfitReset.waiting_for_user_id)
