@@ -16,6 +16,10 @@ from config import MENTOR_SPECIALIZATIONS
 logger = logging.getLogger(__name__)
 
 _SPEC_LABELS: dict[str, str] = {key: display_label for key, _, display_label in MENTOR_SPECIALIZATIONS}
+# «Плоская» версия — обычный юникод-эмодзи без HTML/тегов премиум-эмодзи.
+# Нужна там, где HTML не поддерживается: description инлайн-результатов,
+# текст кнопок и т.п. (см. specialization_keys_to_plain_labels).
+_SPEC_PLAIN_LABELS: dict[str, str] = {key: button_label for key, button_label, _ in MENTOR_SPECIALIZATIONS}
 
 # Статусы участника чата, которые считаем «пользователь состоит в чате».
 # 'left' (вышел) и 'kicked' (исключён) сюда не входят.
@@ -101,11 +105,20 @@ def format_profile(user: dict[str, Any], referrals_count: int) -> str:
 
 
 def specialization_keys_to_labels(raw: Optional[str]) -> list[str]:
-    """Превращает 'rest,trade' из БД в список подписей вида ['🏖 Отдых', '📈 Трейд']."""
+    """Превращает 'rest,trade' из БД в список подписей вида ['🏖 Отдых', '📈 Трейд'] (с HTML/премиум-эмодзи)."""
     if not raw:
         return []
     keys = [key.strip() for key in raw.split(",") if key.strip()]
     return [_SPEC_LABELS.get(key, key) for key in keys]
+
+
+def specialization_keys_to_plain_labels(raw: Optional[str]) -> list[str]:
+    """То же самое, но без HTML — обычный эмодзи вместо тега премиум-эмодзи.
+    Использовать там, где HTML не поддерживается (например, поля инлайн-результатов)."""
+    if not raw:
+        return []
+    keys = [key.strip() for key in raw.split(",") if key.strip()]
+    return [_SPEC_PLAIN_LABELS.get(key, key) for key in keys]
 
 
 def format_mentor_card(mentor: dict[str, Any]) -> str:
