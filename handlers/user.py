@@ -1,17 +1,17 @@
 """
 Обработчики пользовательского сценария:
-/start -> подача заявки -> уведомление админов; реферальная система.
+/start -> подача заявки -> уведомление админов; реферальная система; меню.
 """
 
+import asyncio
 from html import escape as html_escape
 from pathlib import Path
 from typing import Optional
 
 from aiogram import Bot, F, Router
-from aiogram.filters import CommandObject, CommandStart, Command
+from aiogram.filters import CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
-    BufferedInputFile,
     CallbackQuery,
     FSInputFile,
     InlineKeyboardButton,
@@ -24,9 +24,8 @@ from aiogram.types import (
 
 import database as db
 import keyboards as kb
-import profile_render
 from config import ADMIN_IDS
-from states import ApplicationForm, NicknameChange
+from states import ApplicationForm
 from utils import (
     application_eligibility,
     format_mentor_card,
@@ -44,16 +43,17 @@ IMAGES_DIR = Path(__file__).resolve().parent.parent / "images"
 # Fallback-символ внутри тега используется у тех, кому Premium недоступен.
 NEW_REFERRAL_EMOJI_ID = "5458824569026532353"
 
+# ID премиум-эмодзи, показывается отдельным сообщением перед инлайн-меню
+# (кнопка «📋 Меню») — сначала прилетает эмодзи, через паузу — само меню.
+MENU_EMOJI_ID = "5893057118545646106"
+MENU_EMOJI_DELAY = 0.8  # секунды между эмодзи и меню
+
 # Префикс диплинка для прикрепления к наставнику: t.me/<bot>?start=mentor_<id>
 # Используется и в inline-режиме (см. inline_query_handler), и как обычная /start-ссылка.
 MENTOR_DEEPLINK_PREFIX = "mentor_"
 
-# Ограничения на кастомный ник в карточке профиля.
-NICKNAME_MIN_LEN = 2
-NICKNAME_MAX_LEN = 20
-
 ANKET_TEXT = (
-    "🚀Перед тем, как начать зарабатывать миллионы, нужно ответить на несколько вопросов!\n\n"
+    "🚀 Перед тем, как начать зарабатывать миллионы, нужно ответить на несколько вопросов!\n\n"
     "1. Опишите свой опыт работы в данной сфере? (Где раньше воркали, на каких площадках, сколько заработали)\n"
     "2. Сколько времени готовы уделять работе?\n"
     "3. Откуда узнали о нас? (Ссылка на друга или бота, или тикток)\n\n"
@@ -72,7 +72,6 @@ async def _attach_user_to_mentor(
     Закрепляет пользователя за наставником: создаёт запись пользователя при
     необходимости, пишет mentor_id и уведомляет админов.
     Возвращает словарь наставника (или None, если такого наставника не существует).
-
     Используется и кнопкой «✅ Подать заявку», и диплинком /start mentor_<id>
     (в т.ч. из инлайн-режима).
     """
@@ -82,6 +81,7 @@ async def _attach_user_to_mentor(
 
     if not await db.user_exists(user_id):
         await db.add_user(user_id, username, first_name, None)
+
     await db.set_user_mentor(user_id, mentor_id)
 
     who = html_escape(f"@{username}" if username else (first_name or str(user_id)))
@@ -108,7 +108,6 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
       (в т.ч. присланный через инлайн-режим, см. inline_query_handler).
     """
     await state.clear()
-
     user_id = message.from_user.id
     username = message.from_user.username
     first_name = message.from_user.first_name or "друг"
@@ -163,9 +162,10 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
             reply_markup=kb.start_application_inline(),
         )
 
-    # Отдельным сообщением выставляем постоянное меню с реферальной системой
+    # Отдельным сообщением выставляем постоянное меню (кнопка «📋 Меню» внизу экрана)
     await message.answer(
-        "Используй меню ниже, чтобы перейти в реферальную систему в любой момент 👇",
+        "Используй кнопку «📋 Меню» ниже, чтобы в любой момент перейти в профиль, "
+        "реферальную систему или чаты 👇",
         reply_markup=kb.main_menu_reply(),
     )
 
@@ -194,8 +194,8 @@ async def start_application(callback: CallbackQuery, state: FSMContext) -> None:
     """
     user_id = callback.from_user.id
     latest_app = await db.get_latest_application(user_id)
-
     can_apply, blocking_message = application_eligibility(latest_app)
+
     if not can_apply:
         await callback.answer(blocking_message, show_alert=True)
         return
@@ -239,12 +239,36 @@ async def process_application(message: Message, state: FSMContext, bot: Bot) -> 
             continue
 
 
-@router.message(F.text == "🔗 Реферальная система")
-async def referral_system(message: Message, bot: Bot) -> None:
-    """Показ реферальной ссылки пользователя."""
-    me = await bot.get_me()
-    ref_link = f"https://t.me/{me.username}?start={message.from_user.id}"
+# ---------------------------------------------------------------------------
+# Меню: «📋 Меню» -> премиум-эмодзи -> инлайн-меню (Профиль / Реф.система / Чаты)
+# ---------------------------------------------------------------------------
 
+@router.message(F.text == "📋 Меню")
+async def open_menu(message: Message) -> None:
+    """
+    Кнопка постоянного меню. Сначала отправляем одно сообщение с премиум-эмодзи,
+    затем, после небольшой паузы, — само инлайн-меню.
+    """
+    await message.answer(f'<tg-emoji emoji-id="{MENU_EMOJI_ID}">✨</tg-emoji>')
+    await asyncio.sleep(MENU_EMOJI_DELAY)
+    await message.answer("📋 Меню — выберите раздел:", reply_markup=kb.menu_inline())
+
+
+@router.callback_query(F.data == "menu_back")
+async def menu_back(callback: CallbackQuery) -> None:
+    """Возврат в инлайн-меню из любого раздела (Профиль/Чаты/Реф.система)."""
+    try:
+        await callback.message.edit_text("📋 Меню — выберите раздел:", reply_markup=kb.menu_inline())
+    except Exception:
+        await callback.message.answer("📋 Меню — выберите раздел:", reply_markup=kb.menu_inline())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "menu_referral")
+async def menu_referral(callback: CallbackQuery, bot: Bot) -> None:
+    """Раздел «🔗 Реферальная система» из инлайн-меню."""
+    me = await bot.get_me()
+    ref_link = f"https://t.me/{me.username}?start={callback.from_user.id}"
     text = (
         f"Ваша реферальная ссылка: \n\n{ref_link}\n\n"
         "Вы получаете 10% с первого профита реферала. Выплаты осуществляются администратором.\n"
@@ -254,53 +278,27 @@ async def referral_system(message: Message, bot: Bot) -> None:
     # Путь к картинке — абсолютный, не зависит от рабочей директории процесса
     photo_path = IMAGES_DIR / "111.jpg"
     try:
-        await message.answer_photo(photo=FSInputFile(photo_path), caption=text)
+        await callback.message.answer_photo(
+            photo=FSInputFile(photo_path), caption=text, reply_markup=kb.menu_back_kb()
+        )
     except Exception:
         # Картинка могла быть перемещена/удалена — не роняем хендлер,
         # отправляем хотя бы текст со ссылкой.
-        await message.answer(text)
+        await callback.message.answer(text, reply_markup=kb.menu_back_kb())
+    await callback.answer()
 
 
-async def _send_profile_card(message: Message, user_id: int) -> None:
+@router.callback_query(F.data == "menu_profile")
+async def menu_profile(callback: CallbackQuery, bot: Bot) -> None:
     """
-    Отправляет графическую карточку профиля (assets/profile.png + данные)
-    с текстом format_profile() в подписи и кнопками (наставники / смена ника).
-    Используется и вкладкой «Профиль», и командой /profile, и возвратом
-    из списка наставников.
-    """
-    user = await db.get_user(user_id)
-    if user is None:
-        # На случай, если запись о пользователе почему-то отсутствует в БД —
-        # создаём её "на лету", чтобы не ронять хендлер.
-        await db.add_user(user_id, message.from_user.username, message.from_user.first_name, None)
-        user = await db.get_user(user_id)
-
-    referrals_count = await db.get_referrals_count(user_id)
-
-    card_bytes = profile_render.generate_profile_card(user, referrals_count)
-    photo = BufferedInputFile(card_bytes.read(), filename="profile.png")
-
-    await message.answer_photo(
-        photo=photo,
-        caption=format_profile(user, referrals_count),
-        reply_markup=kb.profile_kb(),
-    )
-
-
-@router.message(F.text == "👤 Профиль")
-@router.message(Command("profile"))
-async def show_profile(message: Message, bot: Bot) -> None:
-    """
-    Вкладка «Профиль» (и команда /profile): графическая карточка + тот же
-    текст, что и раньше (сумма профитов, количество рефералов, сколько
-    дней в боте), плюс кнопка смены ника.
-
-    Доступна только пользователям, состоящим в обязательном рабочем чате
+    Раздел «👤 Профиль» из инлайн-меню: сумма профитов, количество рефералов,
+    сколько дней в боте.
+    Доступен только пользователям, состоящим в обязательном рабочем чате
     (chat_id настраивается администратором через /admin -> «🔒 Чат для вкладки
     «Профиль»»). Если чат не настроен админом (пустое значение) — проверка
     пропускается и профиль доступен всем.
     """
-    user_id = message.from_user.id
+    user_id = callback.from_user.id
     required_chat_id = await db.get_setting("required_chat_id", "")
     required_chat_link = await db.get_setting("required_chat_link", "")
 
@@ -311,54 +309,42 @@ async def show_profile(message: Message, bot: Bot) -> None:
             "Пожалуйста, вступите в чат по кнопке ниже и попробуйте снова 👇"
         )
         if required_chat_link:
-            await message.answer(warning_text, reply_markup=kb.join_chat_kb(required_chat_link))
+            await callback.message.answer(warning_text, reply_markup=kb.join_chat_kb(required_chat_link))
         else:
             # Ссылка ещё не настроена админом — предупреждаем без кнопки.
-            await message.answer(
-                warning_text + "\n\n(Ссылка на чат пока не настроена администратором.)"
+            await callback.message.answer(
+                warning_text + "\n\n(Ссылка на чат пока не настроена администратором.)",
+                reply_markup=kb.menu_back_kb(),
             )
+        await callback.answer()
         return
 
     # Пользователь прошёл проверку подписки (или проверка отключена) — показываем профиль.
-    await _send_profile_card(message, user_id)
+    user = await db.get_user(user_id)
+    if user is None:
+        # На случай, если запись о пользователе почему-то отсутствует в БД —
+        # создаём её "на лету", чтобы не ронять хендлер.
+        await db.add_user(user_id, callback.from_user.username, callback.from_user.first_name, None)
+        user = await db.get_user(user_id)
 
-
-# ---------------------------------------------------------------------------
-# Смена ника в карточке профиля
-# ---------------------------------------------------------------------------
-
-@router.callback_query(F.data == "profile_change_nick")
-async def profile_change_nick(callback: CallbackQuery, state: FSMContext) -> None:
-    """Кнопка «✏️ Изменить ник» под карточкой профиля."""
-    await state.set_state(NicknameChange.waiting_for_nickname)
-    await callback.message.answer(
-        f"Введите новый ник (от {NICKNAME_MIN_LEN} до {NICKNAME_MAX_LEN} символов).\n"
-        "Отправьте /cancel, чтобы отменить."
-    )
+    referrals_count = await db.get_referrals_count(user_id)
+    await callback.message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
     await callback.answer()
 
 
-@router.message(Command("cancel"), NicknameChange.waiting_for_nickname)
-async def cancel_change_nick(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer("Отменено.")
-
-
-@router.message(NicknameChange.waiting_for_nickname)
-async def process_new_nickname(message: Message, state: FSMContext) -> None:
-    new_nick = (message.text or "").strip()
-
-    if not (NICKNAME_MIN_LEN <= len(new_nick) <= NICKNAME_MAX_LEN):
-        await message.answer(
-            f"Ник должен быть от {NICKNAME_MIN_LEN} до {NICKNAME_MAX_LEN} символов. Попробуйте ещё раз."
+@router.callback_query(F.data == "menu_chats")
+async def menu_chats(callback: CallbackQuery) -> None:
+    """Раздел «💬 Чаты» из инлайн-меню: список ссылок, добавленных админом."""
+    chats = await db.get_all_chats()
+    if not chats:
+        await callback.message.answer(
+            "Пока нет добавленных чатов. Загляните позже 🙏", reply_markup=kb.menu_back_kb()
         )
+        await callback.answer()
         return
 
-    await db.set_user_nickname(message.from_user.id, new_nick)
-    await state.clear()
-
-    await message.answer(f"Ник обновлён: <b>{html_escape(new_nick)}</b>")
-    await _send_profile_card(message, message.from_user.id)
+    await callback.message.answer("💬 Чаты:", reply_markup=kb.chats_list_kb(chats))
+    await callback.answer()
 
 
 # ---------------------------------------------------------------------------
@@ -381,16 +367,21 @@ async def mentors_list(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == "mentors_back_to_profile")
 async def mentors_back_to_profile(callback: CallbackQuery) -> None:
     """Кнопка «⬅️ Назад» из списка наставников — возврат к вкладке «Профиль»."""
-    await _send_profile_card(callback.message, callback.from_user.id)
+    user_id = callback.from_user.id
+    user = await db.get_user(user_id)
+    if user is None:
+        await db.add_user(user_id, callback.from_user.username, callback.from_user.first_name, None)
+        user = await db.get_user(user_id)
+
+    referrals_count = await db.get_referrals_count(user_id)
+    await callback.message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
     await callback.answer()
 
 
 @router.callback_query(F.data == "mentors_home")
 async def mentors_home(callback: CallbackQuery) -> None:
-    """Кнопка «🏠 Домой» — выход из раздела наставников в главное меню."""
-    await callback.message.answer(
-        "🏠 Вы в главном меню. Используйте меню внизу экрана для навигации 👇"
-    )
+    """Кнопка «🏠 Домой» — выход из раздела наставников в инлайн-меню."""
+    await callback.message.answer("📋 Меню — выберите раздел:", reply_markup=kb.menu_inline())
     await callback.answer()
 
 
@@ -510,7 +501,6 @@ async def inline_query_handler(inline_query: InlineQuery, bot: Bot) -> None:
         mentors = await db.get_all_mentors()
         query_lower = query_text.lower()
         matched = [m for m in mentors if query_lower in m["name"].lower()]
-
         if matched:
             results.extend(_build_mentor_result(bot_username, m) for m in matched[:_MAX_INLINE_RESULTS])
         else:

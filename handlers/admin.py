@@ -1,5 +1,5 @@
 """
-Обработчики админ-панели: заявки, настройка группы, рассылка, рефералы.
+Обработчики админ-панели: заявки, настройка группы, рассылка, рефералы, чаты.
 """
 
 import asyncio
@@ -16,6 +16,7 @@ from config import ADMIN_IDS, MENTOR_SPECIALIZATIONS
 from states import (
     BanUser,
     BroadcastForm,
+    ChatForm,
     GroupLinkSetup,
     MentorEditConditions,
     MentorEditSpecialization,
@@ -392,6 +393,46 @@ async def add_profit_amount(message: Message, state: FSMContext) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Сброс профита пользователя по ID
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data == "admin_reset_profit")
+async def admin_reset_profit_start(callback: CallbackQuery, state: FSMContext) -> None:
+    # Если не админ — сразу гасим анимацию кнопки и показываем предупреждение
+    if not _is_admin(callback.from_user.id):
+        await callback.answer("У вас нет прав!", show_alert=True)
+        return
+
+    # Отвечаем Telegram в первую очередь, чтобы кнопка мгновенно отжала анимацию
+    await callback.answer()
+    await callback.message.edit_text(
+        "Введите ID пользователя, которому нужно обнулить профит:",
+        reply_markup=kb.admin_back_kb(),
+    )
+    await state.set_state(ProfitReset.waiting_for_user_id)
+
+
+@router.message(ProfitReset.waiting_for_user_id)
+async def admin_reset_profit_apply(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+    raw = (message.text or "").strip()
+    if not raw.lstrip("-").isdigit():
+        await message.answer("ID должен быть числом. Попробуйте ещё раз:")
+        return
+
+    target_user_id = int(raw)
+    await db.reset_profit(target_user_id)
+    await state.clear()
+
+    await message.answer(
+        f"✅ Профит пользователя <code>{target_user_id}</code> обнулён.",
+        parse_mode="HTML",
+        reply_markup=kb.admin_menu(),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Логи бота
 # ---------------------------------------------------------------------------
 
@@ -712,6 +753,87 @@ async def admin_mentor_delete_confirm(callback: CallbackQuery) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Чаты: список / добавление / удаление
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data == "admin_chats")
+async def admin_chats_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+    await state.clear()
+    chats = await db.get_all_chats()
+    text = "💬 Чаты:" if chats else "💬 Чатов пока нет. Добавьте первый!"
+    await callback.message.answer(text, reply_markup=kb.admin_chats_menu_kb(chats))
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin_chat_add")
+async def admin_chat_add_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+    await state.set_state(ChatForm.waiting_for_name)
+    await callback.message.answer(
+        "Введите название чата (например: Чат воркеров):"
+    )
+    await callback.answer()
+
+
+@router.message(ChatForm.waiting_for_name)
+async def admin_chat_add_name(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+    name = (message.text or "").strip()
+    if not name:
+        await message.answer("Название не может быть пустым. Введите название ещё раз:")
+        return
+    await state.update_data(name=name)
+    await state.set_state(ChatForm.waiting_for_link)
+    await message.answer("Теперь отправьте ссылку на этот чат:")
+
+
+@router.message(ChatForm.waiting_for_link)
+async def admin_chat_add_link(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+    link = (message.text or "").strip()
+    if not link:
+        await message.answer("Ссылка не может быть пустой. Отправьте ссылку ещё раз:")
+        return
+    data = await state.get_data()
+    name = data.get("name", "")
+    await state.clear()
+
+    await db.create_chat(name, link)
+    chats = await db.get_all_chats()
+    await message.answer(
+        f"✅ Чат «{name}» добавлен!", reply_markup=kb.admin_chats_menu_kb(chats)
+    )
+
+
+@router.callback_query(F.data.startswith("admin_chat_delete:"))
+async def admin_chat_delete_start(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+    chat_row_id = int(callback.data.split(":", 1)[1])
+    await callback.message.answer(
+        "Удалить этот чат из списка?",
+        reply_markup=kb.admin_chat_delete_confirm_kb(chat_row_id),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin_chat_delete_confirm:"))
+async def admin_chat_delete_confirm(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+    chat_row_id = int(callback.data.split(":", 1)[1])
+    await db.delete_chat(chat_row_id)
+    chats = await db.get_all_chats()
+    await callback.message.answer("🗑 Чат удалён.", reply_markup=kb.admin_chats_menu_kb(chats))
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
 # Бан / разбан пользователя по ID
 # ---------------------------------------------------------------------------
 
@@ -830,40 +952,3 @@ async def admin_message_user_send(message: Message, state: FSMContext) -> None:
             "(возможно, он не запускал бота или заблокировал его).",
             reply_markup=kb.admin_back_kb(),
         )
-
-
-# ---------------------------------------------------------------------------
-# Сброс профита пользователя по ID
-# ---------------------------------------------------------------------------
-
-@router.callback_query(F.data == "admin_reset_profit")
-async def admin_reset_profit_start(callback: CallbackQuery, state: FSMContext) -> None:
-    if not _is_admin(callback.from_user.id):
-        return await callback.answer("У вас нет прав!", show_alert=True)
-
-    await callback.answer()
-    await callback.message.edit_text(
-        "Введите ID пользователя, которому нужно обнулить профит:",
-        reply_markup=kb.admin_back_kb(),
-    )
-    await state.set_state(ProfitReset.waiting_for_user_id)
-
-
-@router.message(ProfitReset.waiting_for_user_id)
-async def admin_reset_profit_apply(message: Message, state: FSMContext) -> None:
-    if not _is_admin(message.from_user.id):
-        return
-    raw = (message.text or "").strip()
-    if not raw.lstrip("-").isdigit():
-        await message.answer("ID должен быть числом. Попробуйте ещё раз:")
-        return
-
-    target_user_id = int(raw)
-    await db.reset_profit(target_user_id)
-    await state.clear()
-
-    await message.answer(
-        f"✅ Профит пользователя <code>{target_user_id}</code> обнулён.",
-        parse_mode="HTML",
-        reply_markup=kb.admin_menu(),
-    )
