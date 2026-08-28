@@ -35,6 +35,10 @@ class ProfitAccrual(StatesGroup):
     """Начисление профита пользователю администратором."""
     waiting_for_user_id = State()
     waiting_for_amount = State()
+ 
+ 
+class ProfitReset(StatesGroup):
+    waiting_for_user_id = State()
 
 
 class BanUser(StatesGroup):
