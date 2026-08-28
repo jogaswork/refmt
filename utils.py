@@ -125,22 +125,16 @@ def application_eligibility(latest_application: Optional[dict[str, Any]]) -> tup
     return True, None
 
 
-def format_profile(user: dict[str, Any], referrals_count: int) -> str:
-    """Собирает текст сообщения для вкладки «Профиль»."""
-    profits = user.get("profit") or 0
-    joined_at_raw = user.get("joined_at")
-    days = days_in_bot(joined_at_raw)
-
-    joined_display = "неизвестно"
-    parsed = _parse_joined_at(joined_at_raw)
-    if parsed is not None:
-        joined_display = parsed.strftime("%d.%m.%Y")
+def format_profile(user: dict, referrals_count: int) -> str:
+    """Текст вкладки «Профиль»: профит, рефералы, сколько дней в боте."""
+    profit = user.get("profit", 0)
+    days = user.get("days", 0)
 
     return (
-        "👤 <b>Ваш профиль</b>\n\n"
-        f"💰 Сумма профитов: <b>{format_rubles(profits)} ₽</b>\n"
-        f"👥 Привлечено рефералов: <b>{referrals_count}</b>\n"
-        f"📅 Вы с нами: <b>{days}</b> дн. (дата регистрации: {joined_display})"
+        f'<tg-emoji emoji-id="5258011929993026890">👤</tg-emoji> <b>Ваш профиль</b>\n\n'
+        f'<tg-emoji emoji-id="5348503265967355284">💰</tg-emoji> Сумма профитов: <b>{profit} ₽</b>\n'
+        f'<tg-emoji emoji-id="5256143829672672750">👥</tg-emoji> Привлечено рефералов: <b>{referrals_count}</b>\n'
+        f'<tg-emoji emoji-id="5967412305338568701">📅</tg-emoji> Вы с нами: <b>{days} дн.</b>'
     )
 
 
