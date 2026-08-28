@@ -13,12 +13,14 @@ import database as db
 import keyboards as kb
 from config import ADMIN_IDS, MENTOR_SPECIALIZATIONS
 from states import (
+    BanUser,
     BroadcastForm,
     GroupLinkSetup,
     MentorEditConditions,
     MentorEditSpecialization,
     MentorEditText,
     MentorForm,
+    PersonalMessage,
     ProfileChatSetup,
     ProfitAccrual,
     RejectReason,
@@ -780,3 +782,144 @@ async def admin_mentor_delete_confirm(callback: CallbackQuery) -> None:
     mentors = await db.get_all_mentors()
     await callback.message.answer("🗑 Наставник удалён.", reply_markup=kb.admin_mentors_menu_kb(mentors))
     await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Бан / разбан пользователя по ID
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data == "admin_ban_user")
+async def admin_ban_user_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    await state.set_state(BanUser.waiting_for_user_id)
+    await callback.message.answer("Введите Telegram ID пользователя для бана/разбана:")
+    await callback.answer()
+
+
+@router.message(BanUser.waiting_for_user_id)
+async def admin_ban_user_id(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    raw = (message.text or "").strip()
+    if not raw.isdigit():
+        await message.answer("ID пользователя должен быть числом. Попробуйте ещё раз:")
+        return
+
+    target_user_id = int(raw)
+    await state.clear()
+
+    is_banned = await db.is_user_banned(target_user_id)
+    status_text = "🚫 сейчас забанен" if is_banned else "✅ сейчас не забанен"
+
+    await message.answer(
+        f"Пользователь {target_user_id} {status_text}.\nВыберите действие:",
+        reply_markup=kb.admin_ban_action_kb(target_user_id, is_banned),
+    )
+
+
+@router.callback_query(F.data.startswith("admin_ban_confirm:"))
+async def admin_ban_confirm(callback: CallbackQuery, bot: Bot) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    target_user_id = int(callback.data.split(":", 1)[1])
+    await db.set_user_banned(target_user_id, True)
+
+    await callback.message.answer(
+        f"🚫 Пользователь {target_user_id} забанен.", reply_markup=kb.admin_back_kb()
+    )
+    await callback.answer("Забанен 🚫")
+
+    try:
+        await bot.send_message(target_user_id, "🚫 Вы были заблокированы в этом боте.")
+    except Exception:
+        # Пользователь мог не запускать бота / уже заблокировать его — пропускаем
+        pass
+
+
+@router.callback_query(F.data.startswith("admin_unban_confirm:"))
+async def admin_unban_confirm(callback: CallbackQuery, bot: Bot) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    target_user_id = int(callback.data.split(":", 1)[1])
+    await db.set_user_banned(target_user_id, False)
+
+    await callback.message.answer(
+        f"✅ Пользователь {target_user_id} разбанен.", reply_markup=kb.admin_back_kb()
+    )
+    await callback.answer("Разбанен ✅")
+
+    try:
+        await bot.send_message(target_user_id, "✅ Вы снова можете пользоваться этим ботом.")
+    except Exception:
+        # Пользователь мог не запускать бота / уже заблокировать его — пропускаем
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Сообщение одному пользователю по ID
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data == "admin_message_user")
+async def admin_message_user_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    await state.set_state(PersonalMessage.waiting_for_user_id)
+    await callback.message.answer("Введите Telegram ID пользователя, которому нужно отправить сообщение:")
+    await callback.answer()
+
+
+@router.message(PersonalMessage.waiting_for_user_id)
+async def admin_message_user_id(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    raw = (message.text or "").strip()
+    if not raw.isdigit():
+        await message.answer("ID пользователя должен быть числом. Попробуйте ещё раз:")
+        return
+
+    target_user_id = int(raw)
+    if not await db.user_exists(target_user_id):
+        await message.answer(
+            "Пользователь с таким ID не найден в базе бота. Проверьте ID и попробуйте снова "
+            "(или отправьте /admin, чтобы отменить)."
+        )
+        return
+
+    await state.update_data(target_user_id=target_user_id)
+    await state.set_state(PersonalMessage.waiting_for_message)
+    await message.answer(
+        "Отправьте сообщение (текст, фото, видео или документ), которое нужно переслать "
+        "этому пользователю:"
+    )
+
+
+@router.message(PersonalMessage.waiting_for_message)
+async def admin_message_user_send(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    data = await state.get_data()
+    target_user_id = data.get("target_user_id")
+    await state.clear()
+
+    if target_user_id is None:
+        return
+
+    try:
+        await message.copy_to(target_user_id)
+        await message.answer(
+            f"✅ Сообщение отправлено пользователю {target_user_id}.", reply_markup=kb.admin_back_kb()
+        )
+    except Exception:
+        await message.answer(
+            f"❌ Не удалось отправить сообщение пользователю {target_user_id} "
+            "(возможно, он не запускал бота или заблокировал его).",
+            reply_markup=kb.admin_back_kb(),
+        )
