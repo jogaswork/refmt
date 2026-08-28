@@ -57,13 +57,6 @@ CREATE TABLE IF NOT EXISTS mentors (
     profit_count INTEGER DEFAULT 0,
     created_at TEXT
 );
-
-CREATE TABLE IF NOT EXISTS chats (
-    chat_row_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    link TEXT NOT NULL,
-    created_at TEXT
-);
 """
 
 
@@ -429,41 +422,4 @@ async def set_user_banned(user_id: int, banned: bool) -> None:
         await db.execute(
             "UPDATE users SET banned = ? WHERE user_id = ?", (1 if banned else 0, user_id)
         )
-        await db.commit()
-
-
-# ---------------------------------------------------------------------------
-# Чаты (раздел «💬 Чаты» в главном меню)
-# ---------------------------------------------------------------------------
-
-async def create_chat(name: str, link: str) -> int:
-    created_at = datetime.datetime.utcnow().isoformat()
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "INSERT INTO chats (name, link, created_at) VALUES (?, ?, ?)",
-            (name, link, created_at),
-        )
-        await db.commit()
-        return cursor.lastrowid
-
-
-async def get_chat(chat_row_id: int) -> Optional[dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "SELECT * FROM chats WHERE chat_row_id = ?", (chat_row_id,)
-        )
-        row = await cursor.fetchone()
-        return _row_to_dict(cursor, row) if row else None
-
-
-async def get_all_chats() -> list[dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("SELECT * FROM chats ORDER BY chat_row_id ASC")
-        rows = await cursor.fetchall()
-        return [_row_to_dict(cursor, row) for row in rows]
-
-
-async def delete_chat(chat_row_id: int) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("DELETE FROM chats WHERE chat_row_id = ?", (chat_row_id,))
         await db.commit()

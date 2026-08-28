@@ -89,10 +89,3 @@ class MentorEditConditions(StatesGroup):
 
     waiting_for_percent = State()
     waiting_for_profit_count = State()
-
-
-class ChatForm(StatesGroup):
-    """Добавление нового чата/ссылки администратором (в разделе «💬 Чаты»)."""
-
-    waiting_for_name = State()
-    waiting_for_link = State()
