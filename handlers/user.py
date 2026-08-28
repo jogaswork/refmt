@@ -201,18 +201,21 @@ async def process_application(message: Message, state: FSMContext, bot: Bot) -> 
 MENU_IMAGE_PATH = Path(__file__).resolve().parent.parent / "images" / "menu.png"
 
 
+MAIN_MENU_TITLE = f'<tg-emoji emoji-id="5886223731088431288">📋</tg-emoji> Главное меню'
+
+
 async def _send_main_menu(message: Message) -> None:
     """Отправляет меню картинкой images/menu.png с подписью и инлайн-кнопками."""
     try:
         await message.answer_photo(
             photo=FSInputFile(MENU_IMAGE_PATH),
-            caption="📋 Главное меню",
+            caption=MAIN_MENU_TITLE,
             reply_markup=kb.main_menu_inline(),
         )
     except Exception:
         # Картинка могла быть не положена в images/menu.png — не роняем меню,
         # отправляем хотя бы текстовый вариант.
-        await message.answer("📋 Главное меню", reply_markup=kb.main_menu_inline())
+        await message.answer(MAIN_MENU_TITLE, reply_markup=kb.main_menu_inline())
 
 
 @router.message(F.text == "📋 Меню")
