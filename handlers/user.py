@@ -5,8 +5,7 @@
 from html import escape as html_escape
 from pathlib import Path
 from typing import Optional
-from aiogram.types import BufferedInputFile
-from utils import generate_profile_card
+
 from aiogram import Bot, F, Router
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
@@ -295,19 +294,11 @@ async def show_profile(message: Message, bot: Bot) -> None:
         # создаём её "на лету", чтобы не ронять хендлер.
         await db.add_user(user_id, message.from_user.username, message.from_user.first_name, None)
         user = await db.get_user(user_id)
-    referrals_count = await db.get_referrals_count(user_id)
-    # 1. Генерируем картинку с данными
-    img_buffer = generate_profile_card(
-        nickname=user.get("nickname", message.from_user.first_name),
-        profit=user.get("profit", 0),
-        max_profit=user.get("max_profit", 0),
-        referrals=referrals_count,
-        days_in_team=user.get("days", 0)
-    )
 
-    # 2. Отправляем картинку вместо обычного текста
-    photo = BufferedInputFile(img_buffer.read(), filename="profile.png")
-    await message.answer_photo(photo=photo, reply_markup=kb.profile_kb())
+    referrals_count = await db.get_referrals_count(user_id)
+    await message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
+
+
 # ---------------------------------------------------------------------------
 # Наставники
 # ---------------------------------------------------------------------------
