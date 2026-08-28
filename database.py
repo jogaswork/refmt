@@ -1,10 +1,13 @@
 """
 Слой работы с базой данных (SQLite через aiosqlite).
-Все функции открывают короткоживущее соединение на операцию — для нагрузки Telegram-бота этого более чем достаточно и не требует пула соединений.
+
+Все функции открывают короткоживущее соединение на операцию — для нагрузки
+Telegram-бота этого более чем достаточно и не требует пула соединений.
 """
 
 import datetime
 from typing import Any, Optional
+
 import aiosqlite
 
 from config import DB_PATH, DEFAULT_GROUP_LINK
@@ -18,7 +21,9 @@ CREATE TABLE IF NOT EXISTS users (
     joined_at TEXT,
     profit REAL DEFAULT 0,
     mentor_id INTEGER,
-    banned INTEGER DEFAULT 0
+    banned INTEGER DEFAULT 0,
+    nickname TEXT,
+    max_profit REAL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS applications (
@@ -73,10 +78,11 @@ async def init_db() -> None:
             )
             await db.commit()
 
-        # Миграция для баз, созданных до появления наставников:
-        # добавляем users.mentor_id, если его ещё нет.
         cursor = await db.execute("PRAGMA table_info(users)")
         columns = [col[1] for col in await cursor.fetchall()]
+
+        # Миграция для баз, созданных до появления наставников:
+        # добавляем users.mentor_id, если его ещё нет.
         if "mentor_id" not in columns:
             await db.execute("ALTER TABLE users ADD COLUMN mentor_id INTEGER")
             await db.commit()
@@ -84,6 +90,15 @@ async def init_db() -> None:
         # Миграция для баз, созданных до появления бана: добавляем users.banned.
         if "banned" not in columns:
             await db.execute("ALTER TABLE users ADD COLUMN banned INTEGER DEFAULT 0")
+            await db.commit()
+
+        # Миграция для карточки профиля: кастомный ник и рекордный профит.
+        if "nickname" not in columns:
+            await db.execute("ALTER TABLE users ADD COLUMN nickname TEXT")
+            await db.commit()
+
+        if "max_profit" not in columns:
+            await db.execute("ALTER TABLE users ADD COLUMN max_profit REAL DEFAULT 0")
             await db.commit()
 
         # Миграция для баз, созданных до появления кулдауна на повторную подачу заявки.
@@ -101,7 +116,6 @@ def _row_to_dict(cursor: aiosqlite.Cursor, row: aiosqlite.Row) -> dict[str, Any]
 # ---------------------------------------------------------------------------
 # Пользователи
 # ---------------------------------------------------------------------------
-
 
 async def user_exists(user_id: int) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -173,7 +187,6 @@ async def get_referrals(user_id: int) -> list[dict[str, Any]]:
 # Заявки
 # ---------------------------------------------------------------------------
 
-
 async def create_application(user_id: int, username: Optional[str], text: str) -> int:
     created_at = datetime.datetime.utcnow().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
@@ -233,7 +246,6 @@ async def update_application_status(
 # Настройки (ключ-значение)
 # ---------------------------------------------------------------------------
 
-
 async def get_setting(key: str, default: Optional[str] = None) -> Optional[str]:
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("SELECT value FROM settings WHERE key = ?", (key,))
@@ -267,7 +279,6 @@ async def get_referrals_count(user_id: int) -> int:
 # Логи действий пользователей
 # ---------------------------------------------------------------------------
 
-
 async def add_log(
     user_id: Optional[int],
     username: Optional[str],
@@ -298,13 +309,21 @@ async def get_recent_logs(limit: int = 50) -> list[dict[str, Any]]:
 
 
 async def add_profit(user_id: int, amount: float):
+    """
+    Начисляет профит пользователю: увеличивает общую сумму (profit) и,
+    если это начисление стало рекордным, обновляет max_profit.
+    """
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "INSERT OR IGNORE INTO users (user_id, profit) VALUES (?, 0)",
+            "INSERT OR IGNORE INTO users (user_id, profit, max_profit) VALUES (?, 0, 0)",
             (user_id,),
         )
         await db.execute(
             "UPDATE users SET profit = COALESCE(profit, 0) + ? WHERE user_id = ?",
+            (amount, user_id),
+        )
+        await db.execute(
+            "UPDATE users SET max_profit = MAX(COALESCE(max_profit, 0), ?) WHERE user_id = ?",
             (amount, user_id),
         )
         await db.commit()
@@ -319,10 +338,22 @@ async def set_user_mentor(user_id: int, mentor_id: int) -> None:
         await db.commit()
 
 
+async def set_user_nickname(user_id: int, nickname: str) -> None:
+    """Сохраняет кастомный ник профиля (не путать с Telegram username)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO users (user_id, nickname) VALUES (?, ?)",
+            (user_id, nickname),
+        )
+        await db.execute(
+            "UPDATE users SET nickname = ? WHERE user_id = ?", (nickname, user_id)
+        )
+        await db.commit()
+
+
 # ---------------------------------------------------------------------------
 # Наставники
 # ---------------------------------------------------------------------------
-
 
 async def create_mentor(
     name: str,
@@ -394,7 +425,6 @@ async def delete_mentor(mentor_id: int) -> None:
 # ---------------------------------------------------------------------------
 # Бан пользователей
 # ---------------------------------------------------------------------------
-
 
 async def is_user_banned(user_id: int) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:

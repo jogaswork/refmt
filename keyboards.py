@@ -1,6 +1,7 @@
 """
 Все inline- и reply-клавиатуры бота.
 """
+
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -9,7 +10,6 @@ from aiogram.types import (
 )
 
 from config import MENTOR_SPECIALIZATIONS
-
 
 # ---------------------------------------------------------------------------
 # Пользовательские клавиатуры
@@ -63,10 +63,11 @@ def skip_reason_kb() -> InlineKeyboardMarkup:
 # ---------------------------------------------------------------------------
 
 def profile_kb() -> InlineKeyboardMarkup:
-    """Кнопка под текстом вкладки «Профиль» — переход к наставникам."""
+    """Кнопки под карточкой профиля — переход к наставникам и смена ника."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🎓 Наставники", callback_data="mentors_list")]
+            [InlineKeyboardButton(text="🎓 Наставники", callback_data="mentors_list")],
+            [InlineKeyboardButton(text="✏️ Изменить ник", callback_data="profile_change_nick")],
         ]
     )
 
@@ -115,6 +116,28 @@ def mentor_spec_toggle_kb(selected: set[str]) -> InlineKeyboardMarkup:
     ]
     rows.append([InlineKeyboardButton(text="Готово ➡️", callback_data="mentor_spec_done")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+# ---------------------------------------------------------------------------
+# Карточка профиля (/profile) — картинка + смена ника
+# ---------------------------------------------------------------------------
+
+def profile_card_kb() -> InlineKeyboardMarkup:
+    """Кнопка под графической карточкой профиля — смена ника."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✏️ Изменить ник", callback_data="profile_card:change_nick")]
+        ]
+    )
+
+
+def cancel_nickname_kb() -> InlineKeyboardMarkup:
+    """Кнопка отмены при вводе нового ника."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Отмена", callback_data="profile_card:cancel_nick")]
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +243,6 @@ def admin_ban_action_kb(user_id: int, is_banned: bool) -> InlineKeyboardMarkup:
         action_button = InlineKeyboardButton(
             text="🚫 Забанить", callback_data=f"admin_ban_confirm:{user_id}"
         )
-
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [action_button],

@@ -1,6 +1,7 @@
 """
 Состояния конечного автомата (FSM) для всех сценариев бота.
 """
+
 from aiogram.fsm.state import State, StatesGroup
 
 
@@ -71,3 +72,7 @@ class MentorEditConditions(StatesGroup):
     waiting_for_percent = State()
     waiting_for_profit_count = State()
 
+
+class NicknameChange(StatesGroup):
+    """Смена кастомного ника в карточке профиля (/profile)."""
+    waiting_for_nickname = State()
