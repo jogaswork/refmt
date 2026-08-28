@@ -246,7 +246,7 @@ async def referral_system(message: Message, bot: Bot) -> None:
     ref_link = f"https://t.me/{me.username}?start={message.from_user.id}"
 
     text = (
-        f"'<tg-emoji emoji-id="5258011929993026890">👤</tg-emoji>Ваша реферальная ссылка: \n\n{ref_link}\n\n"
+        f"Ваша реферальная ссылка: \n\n{ref_link}\n\n"
         "Вы получаете 10% с первого профита реферала. Выплаты осуществляются администратором.\n"
         "Для получения выплаты отпишите: @manzi_nx или @jogas_wor"
     )
