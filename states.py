@@ -6,54 +6,41 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class ApplicationForm(StatesGroup):
-    """Заполнение анкеты пользователем."""
     waiting_for_answer = State()
 
 
 class RejectReason(StatesGroup):
-    """Ввод администратором причины отклонения заявки."""
     waiting_for_reason = State()
 
 
 class GroupLinkSetup(StatesGroup):
-    """Настройка ссылки на рабочую группу."""
     waiting_for_link = State()
 
 
 class BroadcastForm(StatesGroup):
-    """Создание рассылки для всех пользователей."""
     waiting_for_message = State()
 
 
 class ProfileChatSetup(StatesGroup):
-    """Настройка обязательного чата, доступ к которому нужен для вкладки «Профиль»."""
-    waiting_for_chat_id = State()    # числовой ID чата или @username (для getChatMember)
-    waiting_for_chat_link = State()  # ссылка-приглашение, показываемая пользователю
+    waiting_for_chat_id = State()
+    waiting_for_chat_link = State()
 
 
 class ProfitAccrual(StatesGroup):
-    """Начисление профита пользователю администратором."""
     waiting_for_user_id = State()
     waiting_for_amount = State()
- 
- 
-class ProfitReset(StatesGroup):
-    waiting_for_user_id = State()
 
 
 class BanUser(StatesGroup):
-    """Бан / разбан пользователя администратором по ID."""
     waiting_for_user_id = State()
 
 
 class PersonalMessage(StatesGroup):
-    """Отправка сообщения одному конкретному пользователю по его ID."""
     waiting_for_user_id = State()
     waiting_for_message = State()
 
 
 class MentorForm(StatesGroup):
-    """Добавление нового наставника администратором (по порядку: текст -> специализация -> условия)."""
     waiting_for_name = State()
     waiting_for_description = State()
     waiting_for_specialization = State()
@@ -62,26 +49,24 @@ class MentorForm(StatesGroup):
 
 
 class MentorEditText(StatesGroup):
-    """Редактирование текста «О наставнике» у существующего наставника."""
     waiting_for_text = State()
 
 
 class MentorEditSpecialization(StatesGroup):
-    """Редактирование специализации у существующего наставника."""
     waiting_for_selection = State()
 
 
 class MentorEditConditions(StatesGroup):
-    """Редактирование условий сотрудничества (процент, количество профитов)."""
     waiting_for_percent = State()
     waiting_for_profit_count = State()
 
 
 class NicknameChange(StatesGroup):
-    """Смена кастомного ника в карточке профиля (/profile)."""
+    """Смена кастомного ника в карточке профиля."""
     waiting_for_nickname = State()
 
 
-class ProfitReset(StatesGroup):
-    """Сброс профита пользователя администратором по ID."""
-    waiting_for_user_id = State()
+class ChatLinkForm(StatesGroup):
+    """Добавление ссылки в раздел «💬 Чаты» администратором."""
+    waiting_for_title = State()
+    waiting_for_url = State()
