@@ -136,7 +136,7 @@ def format_profile(user: dict[str, Any], referrals_count: int) -> str:
     if parsed is not None:
         joined_display = parsed.strftime("%d.%m.%Y")
 
-return (
+    return (
         "👤 <b>Ваш профиль</b>\n\n"
         f"💰 Сумма профитов: <b>{format_rubles(profits)} ₽</b>\n"
         f"👥 Привлечено рефералов: <b>{referrals_count}</b>\n"
