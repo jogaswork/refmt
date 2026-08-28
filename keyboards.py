@@ -166,6 +166,7 @@ def admin_menu() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="👥 Пользователи (Рефералы)", callback_data="admin_users")],
             [InlineKeyboardButton(text="🔒 Чат для вкладки «Профиль»", callback_data="admin_profile_chat_setup")],
             [InlineKeyboardButton(text="💰 Начислить профит", callback_data="admin_add_profit")],
+            [InlineKeyboardButton(text="🔄 Сбросить профит по ID", callback_data="admin_reset_profit")],
             [InlineKeyboardButton(text="🎓 Наставники", callback_data="admin_mentors")],
             [InlineKeyboardButton(text="🚫 Бан / разбан пользователя", callback_data="admin_ban_user")],
             [InlineKeyboardButton(text="✉️ Сообщение одному пользователю", callback_data="admin_message_user")],
