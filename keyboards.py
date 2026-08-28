@@ -15,6 +15,7 @@ from config import MENTOR_SPECIALIZATIONS
 # Пользовательские клавиатуры
 # ---------------------------------------------------------------------------
 
+
 def start_application_inline() -> InlineKeyboardMarkup:
     """Кнопка под приветственным сообщением."""
     return InlineKeyboardMarkup(
@@ -25,15 +26,44 @@ def start_application_inline() -> InlineKeyboardMarkup:
 
 
 def main_menu_reply() -> ReplyKeyboardMarkup:
-    """Постоянное меню внизу экрана."""
+    """Постоянное меню внизу экрана — единственная кнопка «📋 Меню»."""
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🔗 Реферальная система")],
-            [KeyboardButton(text="👤 Профиль")],
+            [KeyboardButton(text="📋 Меню")],
         ],
         resize_keyboard=True,
         is_persistent=True,
     )
+
+
+def menu_inline() -> InlineKeyboardMarkup:
+    """Инлайн-меню с разделами: Профиль, Реферальная система, Чаты."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="👤 Профиль", callback_data="menu_profile")],
+            [InlineKeyboardButton(text="🔗 Реферальная система", callback_data="menu_referral")],
+            [InlineKeyboardButton(text="💬 Чаты", callback_data="menu_chats")],
+        ]
+    )
+
+
+def menu_back_kb() -> InlineKeyboardMarkup:
+    """Кнопка возврата в инлайн-меню (используется из разделов «Чаты» и т.п.)."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="menu_back")]
+        ]
+    )
+
+
+def chats_list_kb(chats: list[dict]) -> InlineKeyboardMarkup:
+    """Список чатов/ссылок для пользователя: каждая кнопка сразу открывает ссылку."""
+    rows = [
+        [InlineKeyboardButton(text=c["name"], url=c["link"])]
+        for c in chats
+    ]
+    rows.append([InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="menu_back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def join_chat_kb(chat_link: str) -> InlineKeyboardMarkup:
@@ -62,12 +92,13 @@ def skip_reason_kb() -> InlineKeyboardMarkup:
 # Наставники — пользовательские клавиатуры
 # ---------------------------------------------------------------------------
 
+
 def profile_kb() -> InlineKeyboardMarkup:
-    """Кнопки под карточкой профиля — переход к наставникам и смена ника."""
+    """Кнопки под текстом вкладки «Профиль» — переход к наставникам и назад в меню."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🎓 Наставники", callback_data="mentors_list")],
-            [InlineKeyboardButton(text="✏️ Изменить ник", callback_data="profile_change_nick")],
+            [InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="menu_back")],
         ]
     )
 
@@ -119,30 +150,9 @@ def mentor_spec_toggle_kb(selected: set[str]) -> InlineKeyboardMarkup:
 
 
 # ---------------------------------------------------------------------------
-# Карточка профиля (/profile) — картинка + смена ника
-# ---------------------------------------------------------------------------
-
-def profile_card_kb() -> InlineKeyboardMarkup:
-    """Кнопка под графической карточкой профиля — смена ника."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="✏️ Изменить ник", callback_data="profile_card:change_nick")]
-        ]
-    )
-
-
-def cancel_nickname_kb() -> InlineKeyboardMarkup:
-    """Кнопка отмены при вводе нового ника."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Отмена", callback_data="profile_card:cancel_nick")]
-        ]
-    )
-
-
-# ---------------------------------------------------------------------------
 # Админ-клавиатуры
 # ---------------------------------------------------------------------------
+
 
 def application_decision_kb(app_id: int) -> InlineKeyboardMarkup:
     """Кнопки принять/отклонить под конкретной заявкой."""
@@ -166,8 +176,9 @@ def admin_menu() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="👥 Пользователи (Рефералы)", callback_data="admin_users")],
             [InlineKeyboardButton(text="🔒 Чат для вкладки «Профиль»", callback_data="admin_profile_chat_setup")],
             [InlineKeyboardButton(text="💰 Начислить профит", callback_data="admin_add_profit")],
-            [InlineKeyboardButton(text="🔄 Сбросить профит по ID", callback_data="admin_reset_profit")],
+            [InlineKeyboardButton(text="🧹 Сбросить профит", callback_data="admin_reset_profit")],
             [InlineKeyboardButton(text="🎓 Наставники", callback_data="admin_mentors")],
+            [InlineKeyboardButton(text="💬 Чаты", callback_data="admin_chats")],
             [InlineKeyboardButton(text="🚫 Бан / разбан пользователя", callback_data="admin_ban_user")],
             [InlineKeyboardButton(text="✉️ Сообщение одному пользователю", callback_data="admin_message_user")],
             [InlineKeyboardButton(text="📝 Логи бота", callback_data="admin_logs")],
@@ -187,6 +198,7 @@ def admin_back_kb() -> InlineKeyboardMarkup:
 # ---------------------------------------------------------------------------
 # Наставники — админ-клавиатуры
 # ---------------------------------------------------------------------------
+
 
 def admin_mentors_menu_kb(mentors: list[dict]) -> InlineKeyboardMarkup:
     """Список наставников в админке: редактировать/удалить каждого + добавить нового."""
@@ -228,8 +240,40 @@ def admin_mentor_delete_confirm_kb(mentor_id: int) -> InlineKeyboardMarkup:
 
 
 # ---------------------------------------------------------------------------
+# Чаты — админ-клавиатуры
+# ---------------------------------------------------------------------------
+
+
+def admin_chats_menu_kb(chats: list[dict]) -> InlineKeyboardMarkup:
+    """Список чатов в админке: удалить каждый + добавить новый."""
+    rows = [
+        [
+            InlineKeyboardButton(text=f"💬 {c['name']}", url=c["link"]),
+            InlineKeyboardButton(text="🗑", callback_data=f"admin_chat_delete:{c['chat_row_id']}"),
+        ]
+        for c in chats
+    ]
+    rows.append([InlineKeyboardButton(text="➕ Добавить чат", callback_data="admin_chat_add")])
+    rows.append([InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="admin_back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def admin_chat_delete_confirm_kb(chat_row_id: int) -> InlineKeyboardMarkup:
+    """Подтверждение удаления чата."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="❌ Да, удалить", callback_data=f"admin_chat_delete_confirm:{chat_row_id}"),
+                InlineKeyboardButton(text="Отмена", callback_data="admin_chats"),
+            ]
+        ]
+    )
+
+
+# ---------------------------------------------------------------------------
 # Бан пользователей — админ-клавиатура
 # ---------------------------------------------------------------------------
+
 
 def admin_ban_action_kb(user_id: int, is_banned: bool) -> InlineKeyboardMarkup:
     """
