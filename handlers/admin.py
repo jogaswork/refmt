@@ -923,3 +923,29 @@ async def admin_message_user_send(message: Message, state: FSMContext) -> None:
             "(возможно, он не запускал бота или заблокировал его).",
             reply_markup=kb.admin_back_kb(),
         )
+@router.callback_query(F.data == "admin_reset_profit")
+async def admin_reset_profit_start(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in ADMIN_IDS:
+        return
+    await callback.message.edit_text(
+        "Введите ID пользователя, которому нужно обнулить профит:",
+        reply_markup=admin_back_kb(),
+    )
+    await state.set_state(ProfitReset.waiting_for_user_id)
+    await callback.answer()
+
+
+@router.message(ProfitReset.waiting_for_user_id)
+async def admin_reset_profit_apply(message: Message, state: FSMContext):
+    if not message.text or not message.text.strip().lstrip("-").isdigit():
+        await message.answer("ID должен быть числом. Попробуйте ещё раз:")
+        return
+
+    user_id = int(message.text.strip())
+    await db.reset_profit(user_id)
+    await state.clear()
+    await message.answer(
+        f"Профит пользователя <code>{user_id}</code> обнулён.",
+        parse_mode="HTML",
+        reply_markup=admin_menu(),
+    )
