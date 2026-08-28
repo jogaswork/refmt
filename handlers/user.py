@@ -25,6 +25,7 @@ import keyboards as kb
 from config import ADMIN_IDS
 from states import ApplicationForm
 from utils import (
+    application_eligibility,
     format_mentor_card,
     format_profile,
     is_chat_member,
@@ -139,10 +140,21 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
             # Рефовод мог не запускать бота / заблокировать его — пропускаем
             pass
 
-    await message.answer(
-        f"Привет, {html_escape(first_name)}! Добро пожаловать в команду 🚀",
-        reply_markup=kb.start_application_inline(),
-    )
+    # Если заявка уже принята — кнопку «Подать заявку» больше не показываем,
+    # чтобы не провоцировать повторную подачу (см. application_eligibility).
+    latest_app = await db.get_latest_application(user_id)
+    already_accepted = latest_app is not None and latest_app.get("status") == "accepted"
+
+    if already_accepted:
+        await message.answer(
+            f"С возвращением, {html_escape(first_name)}! Вы уже в команде 🎉\n"
+            "Повторная подача заявки не требуется."
+        )
+    else:
+        await message.answer(
+            f"Привет, {html_escape(first_name)}! Добро пожаловать в команду 🚀",
+            reply_markup=kb.start_application_inline(),
+        )
     # Отдельным сообщением выставляем постоянное меню с реферальной системой
     await message.answer(
         "Используй меню ниже, чтобы перейти в реферальную систему в любой момент 👇",
@@ -164,7 +176,23 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
 
 @router.callback_query(F.data == "start_application")
 async def start_application(callback: CallbackQuery, state: FSMContext) -> None:
-    """Пользователь нажал «Перейти к заполнению заявки»."""
+    """
+    Пользователь нажал «Перейти к заполнению заявки».
+
+    Реальная проверка (можно ли подавать заявку прямо сейчас) — здесь, а не
+    только в /start, потому что кнопка могла остаться в старом сообщении:
+    - заявка уже принята -> подавать больше не нужно;
+    - заявка на рассмотрении -> ждём решения;
+    - заявка отклонена меньше минуты назад -> антиспам-пауза (см. application_eligibility).
+    """
+    user_id = callback.from_user.id
+    latest_app = await db.get_latest_application(user_id)
+    can_apply, blocking_message = application_eligibility(latest_app)
+
+    if not can_apply:
+        await callback.answer(blocking_message, show_alert=True)
+        return
+
     await callback.message.answer(ANKET_TEXT)
     await state.set_state(ApplicationForm.waiting_for_answer)
     await callback.answer()
