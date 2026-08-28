@@ -198,21 +198,39 @@ async def process_application(message: Message, state: FSMContext, bot: Bot) -> 
 # Главное меню: «📋 Меню» -> эмодзи-заставка -> инлайн-меню
 # ---------------------------------------------------------------------------
 
+MENU_IMAGE_PATH = Path(__file__).resolve().parent.parent / "images" / "menu.png"
+
+
+async def _send_main_menu(message: Message) -> None:
+    """Отправляет меню картинкой images/menu.png с подписью и инлайн-кнопками."""
+    try:
+        await message.answer_photo(
+            photo=FSInputFile(MENU_IMAGE_PATH),
+            caption="📋 Главное меню",
+            reply_markup=kb.main_menu_inline(),
+        )
+    except Exception:
+        # Картинка могла быть не положена в images/menu.png — не роняем меню,
+        # отправляем хотя бы текстовый вариант.
+        await message.answer("📋 Главное меню", reply_markup=kb.main_menu_inline())
+
+
 @router.message(F.text == "📋 Меню")
 async def show_main_menu(message: Message) -> None:
     """
     Кнопка «📋 Меню»: сначала отправляется одно сообщение с эмодзи-заставкой,
-    затем — через небольшую паузу — само меню (Профиль / Реферальная система / Чаты).
+    затем — через небольшую паузу — само меню картинкой (Профиль / Реферальная
+    система / Чаты).
     """
     await message.answer(f'<tg-emoji emoji-id="{MENU_INTRO_EMOJI_ID}">🔥</tg-emoji>')
     await asyncio.sleep(MENU_INTRO_DELAY)
-    await message.answer("📋 Главное меню", reply_markup=kb.main_menu_inline())
+    await _send_main_menu(message)
 
 
 @router.callback_query(F.data == "menu_back")
 async def menu_back(callback: CallbackQuery) -> None:
-    """Возврат в инлайн-меню без повторной эмодзи-заставки (уже показывали её)."""
-    await callback.message.answer("📋 Главное меню", reply_markup=kb.main_menu_inline())
+    """Возврат в меню без повторной эмодзи-заставки (уже показывали её)."""
+    await _send_main_menu(callback.message)
     await callback.answer()
 
 
@@ -388,7 +406,7 @@ async def mentors_back_to_profile(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == "mentors_home")
 async def mentors_home(callback: CallbackQuery) -> None:
-    await callback.message.answer("📋 Главное меню", reply_markup=kb.main_menu_inline())
+    await _send_main_menu(callback.message)
     await callback.answer()
 
 
