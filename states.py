@@ -76,3 +76,8 @@ class MentorEditConditions(StatesGroup):
 class NicknameChange(StatesGroup):
     """Смена кастомного ника в карточке профиля (/profile)."""
     waiting_for_nickname = State()
+
+
+class ProfitReset(StatesGroup):
+    """Сброс профита пользователя администратором по ID."""
+    waiting_for_user_id = State()
