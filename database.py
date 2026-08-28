@@ -443,3 +443,14 @@ async def set_user_banned(user_id: int, banned: bool) -> None:
             "UPDATE users SET banned = ? WHERE user_id = ?", (1 if banned else 0, user_id)
         )
         await db.commit()
+
+# ---------------------------------------------------------------------------
+# Сброс профитов
+# --------------------------------------------------------------------------- 
+
+async def reset_profit(user_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE users SET profit = 0 WHERE user_id = ?", (user_id,)
+        )
+        await db.commit()
