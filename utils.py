@@ -180,3 +180,38 @@ def format_mentor_card(mentor: dict[str, Any]) -> str:
         f"• Процент от профита: {percent:g}%\n"
         f"• Количество профитов: {int(count)}"
     )
+
+import io
+from PIL import Image, ImageDraw, ImageFont
+
+TEMPLATE_PATH = "profile.png"
+FONT_PATH = "Montserrat-Bold.ttf"
+
+def generate_profile_card(nickname: str, profit: float, max_profit: float, referrals: int, days_in_team: int) -> io.BytesIO:
+    img = Image.open(TEMPLATE_PATH).convert("RGBA")
+    draw = ImageDraw.Draw(img)
+
+    try:
+        font = ImageFont.truetype(FONT_PATH, 34)
+    except OSError:
+        font = ImageFont.load_default()
+
+    profit_str = f"{profit:,.0f} ₽".replace(",", " ")
+    max_profit_str = f"{max_profit:,.0f} ₽".replace(",", " ")
+
+    # Точные координаты центров плашек
+    fields = [
+        (nickname, (494, 408)),           # Никнейм
+        (f"{days_in_team}", (814, 408)),   # Дней в тиме
+        (profit_str, (372, 650)),         # Сумма профитов
+        (max_profit_str, (601, 650)),     # Макс. профит
+        (f"{referrals}", (829, 650))      # Рефералы
+    ]
+
+    for text, (x_center, y_center) in fields:
+        draw.text((x_center, y_center), text, fill=(255, 255, 255), font=font, anchor="mm")
+
+    output_buffer = io.BytesIO()
+    img.save(output_buffer, format="PNG")
+    output_buffer.seek(0)
+    return output_buffer
