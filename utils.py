@@ -128,7 +128,9 @@ def application_eligibility(latest_application: Optional[dict[str, Any]]) -> tup
 def format_profile(user: dict, referrals_count: int) -> str:
     """Текст вкладки «Профиль»: профит, рефералы, сколько дней в боте."""
     profit = user.get("profit", 0)
-    days = user.get("days", 0)
+    joined_at = user.get("created_at") or user.get("joined_at")
+    days = days_in_bot(joined_at) if joined_at else user.get("days", 0)
+    
 
     return (
         f'<tg-emoji emoji-id="5258011929993026890">👤</tg-emoji> <b>Ваш профиль</b>\n\n'
