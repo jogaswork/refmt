@@ -136,12 +136,12 @@ def format_profile(user: dict[str, Any], referrals_count: int) -> str:
     if parsed is not None:
         joined_display = parsed.strftime("%d.%m.%Y")
 
-    return (
-        "👤 <b>Ваш профиль</b>\n\n"
-        f"💰 Сумма профитов: <b>{format_rubles(profits)} ₽</b>\n"
-        f"👥 Привлечено рефералов: <b>{referrals_count}</b>\n"
-        f"📅 Вы с нами: <b>{days}</b> дн. (дата регистрации: {joined_display})"
-    )
+    return
+    f'<tg-emoji emoji-id="5258011929993026890">👤</tg-emoji> <b>Ваш профиль</b>\n\n'
+    f'<tg-emoji emoji-id="5348503265967355284">💰</tg-emoji> Сумма профитов: <b>{profit} ₽</b>\n'
+    f'<tg-emoji emoji-id="5256143829672672750">👥</tg-emoji> Привлечено рефералов: <b>{referrals_count}</b>\n'
+    f'<tg-emoji emoji-id="5967412305338568701">📅</tg-emoji> Вы с нами: <b>{days} дн.</b> '
+    f'(дата регистрации: {joined_date})'
 
 
 def specialization_keys_to_labels(raw: Optional[str]) -> list[str]:
