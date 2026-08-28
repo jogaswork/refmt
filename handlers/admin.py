@@ -1,5 +1,5 @@
 """
-Обработчики админ-панели: заявки, настройка группы, рассылка, рефералы, чаты.
+Обработчики админ-панели: заявки, настройка группы, рассылка, рефералы.
 """
 
 import asyncio
@@ -16,7 +16,6 @@ from config import ADMIN_IDS, MENTOR_SPECIALIZATIONS
 from states import (
     BanUser,
     BroadcastForm,
-    ChatForm,
     GroupLinkSetup,
     MentorEditConditions,
     MentorEditSpecialization,
@@ -749,87 +748,6 @@ async def admin_mentor_delete_confirm(callback: CallbackQuery) -> None:
     await db.delete_mentor(mentor_id)
     mentors = await db.get_all_mentors()
     await callback.message.answer("🗑 Наставник удалён.", reply_markup=kb.admin_mentors_menu_kb(mentors))
-    await callback.answer()
-
-
-# ---------------------------------------------------------------------------
-# Чаты: список / добавление / удаление
-# ---------------------------------------------------------------------------
-
-@router.callback_query(F.data == "admin_chats")
-async def admin_chats_menu(callback: CallbackQuery, state: FSMContext) -> None:
-    if not _is_admin(callback.from_user.id):
-        return await callback.answer()
-    await state.clear()
-    chats = await db.get_all_chats()
-    text = "💬 Чаты:" if chats else "💬 Чатов пока нет. Добавьте первый!"
-    await callback.message.answer(text, reply_markup=kb.admin_chats_menu_kb(chats))
-    await callback.answer()
-
-
-@router.callback_query(F.data == "admin_chat_add")
-async def admin_chat_add_start(callback: CallbackQuery, state: FSMContext) -> None:
-    if not _is_admin(callback.from_user.id):
-        return await callback.answer()
-    await state.set_state(ChatForm.waiting_for_name)
-    await callback.message.answer(
-        "Введите название чата (например: Чат воркеров):"
-    )
-    await callback.answer()
-
-
-@router.message(ChatForm.waiting_for_name)
-async def admin_chat_add_name(message: Message, state: FSMContext) -> None:
-    if not _is_admin(message.from_user.id):
-        return
-    name = (message.text or "").strip()
-    if not name:
-        await message.answer("Название не может быть пустым. Введите название ещё раз:")
-        return
-    await state.update_data(name=name)
-    await state.set_state(ChatForm.waiting_for_link)
-    await message.answer("Теперь отправьте ссылку на этот чат:")
-
-
-@router.message(ChatForm.waiting_for_link)
-async def admin_chat_add_link(message: Message, state: FSMContext) -> None:
-    if not _is_admin(message.from_user.id):
-        return
-    link = (message.text or "").strip()
-    if not link:
-        await message.answer("Ссылка не может быть пустой. Отправьте ссылку ещё раз:")
-        return
-    data = await state.get_data()
-    name = data.get("name", "")
-    await state.clear()
-
-    await db.create_chat(name, link)
-    chats = await db.get_all_chats()
-    await message.answer(
-        f"✅ Чат «{name}» добавлен!", reply_markup=kb.admin_chats_menu_kb(chats)
-    )
-
-
-@router.callback_query(F.data.startswith("admin_chat_delete:"))
-async def admin_chat_delete_start(callback: CallbackQuery) -> None:
-    if not _is_admin(callback.from_user.id):
-        return await callback.answer()
-    chat_row_id = int(callback.data.split(":", 1)[1])
-    await callback.message.answer(
-        "Удалить этот чат из списка?",
-        reply_markup=kb.admin_chat_delete_confirm_kb(chat_row_id),
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith("admin_chat_delete_confirm:"))
-async def admin_chat_delete_confirm(callback: CallbackQuery) -> None:
-    if not _is_admin(callback.from_user.id):
-        return await callback.answer()
-    chat_row_id = int(callback.data.split(":", 1)[1])
-    await db.delete_chat(chat_row_id)
-    chats = await db.get_all_chats()
-    await callback.message.answer("🗑 Чат удалён.", reply_markup=kb.admin_chats_menu_kb(chats))
     await callback.answer()
 
 

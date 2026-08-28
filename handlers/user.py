@@ -1,9 +1,8 @@
 """
 Обработчики пользовательского сценария:
-/start -> подача заявки -> уведомление админов; реферальная система; меню.
+/start -> подача заявки -> уведомление админов; реферальная система.
 """
 
-import asyncio
 from html import escape as html_escape
 from pathlib import Path
 from typing import Optional
@@ -42,11 +41,6 @@ IMAGES_DIR = Path(__file__).resolve().parent.parent / "images"
 # ID премиум-эмодзи, показывается вместо 🎉 в уведомлении рефовода о новом реферале.
 # Fallback-символ внутри тега используется у тех, кому Premium недоступен.
 NEW_REFERRAL_EMOJI_ID = "5458824569026532353"
-
-# ID премиум-эмодзи, показывается отдельным сообщением перед инлайн-меню
-# (кнопка «📋 Меню») — сначала прилетает эмодзи, через паузу — само меню.
-MENU_EMOJI_ID = "5893057118545646106"
-MENU_EMOJI_DELAY = 0.8  # секунды между эмодзи и меню
 
 # Префикс диплинка для прикрепления к наставнику: t.me/<bot>?start=mentor_<id>
 # Используется и в inline-режиме (см. inline_query_handler), и как обычная /start-ссылка.
@@ -162,10 +156,9 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
             reply_markup=kb.start_application_inline(),
         )
 
-    # Отдельным сообщением выставляем постоянное меню (кнопка «📋 Меню» внизу экрана)
+    # Отдельным сообщением выставляем постоянное меню с реферальной системой
     await message.answer(
-        "Используй кнопку «📋 Меню» ниже, чтобы в любой момент перейти в профиль, "
-        "реферальную систему или чаты 👇",
+        "Используй меню ниже, чтобы перейти в реферальную систему в любой момент 👇",
         reply_markup=kb.main_menu_reply(),
     )
 
@@ -239,36 +232,11 @@ async def process_application(message: Message, state: FSMContext, bot: Bot) -> 
             continue
 
 
-# ---------------------------------------------------------------------------
-# Меню: «📋 Меню» -> премиум-эмодзи -> инлайн-меню (Профиль / Реф.система / Чаты)
-# ---------------------------------------------------------------------------
-
-@router.message(F.text == "📋 Меню")
-async def open_menu(message: Message) -> None:
-    """
-    Кнопка постоянного меню. Сначала отправляем одно сообщение с премиум-эмодзи,
-    затем, после небольшой паузы, — само инлайн-меню.
-    """
-    await message.answer(f'<tg-emoji emoji-id="{MENU_EMOJI_ID}">✨</tg-emoji>')
-    await asyncio.sleep(MENU_EMOJI_DELAY)
-    await message.answer("📋 Меню — выберите раздел:", reply_markup=kb.menu_inline())
-
-
-@router.callback_query(F.data == "menu_back")
-async def menu_back(callback: CallbackQuery) -> None:
-    """Возврат в инлайн-меню из любого раздела (Профиль/Чаты/Реф.система)."""
-    try:
-        await callback.message.edit_text("📋 Меню — выберите раздел:", reply_markup=kb.menu_inline())
-    except Exception:
-        await callback.message.answer("📋 Меню — выберите раздел:", reply_markup=kb.menu_inline())
-    await callback.answer()
-
-
-@router.callback_query(F.data == "menu_referral")
-async def menu_referral(callback: CallbackQuery, bot: Bot) -> None:
-    """Раздел «🔗 Реферальная система» из инлайн-меню."""
+@router.message(F.text == "🔗 Реферальная система")
+async def referral_system(message: Message, bot: Bot) -> None:
+    """Показ реферальной ссылки пользователя."""
     me = await bot.get_me()
-    ref_link = f"https://t.me/{me.username}?start={callback.from_user.id}"
+    ref_link = f"https://t.me/{me.username}?start={message.from_user.id}"
     text = (
         f"Ваша реферальная ссылка: \n\n{ref_link}\n\n"
         "Вы получаете 10% с первого профита реферала. Выплаты осуществляются администратором.\n"
@@ -278,27 +246,23 @@ async def menu_referral(callback: CallbackQuery, bot: Bot) -> None:
     # Путь к картинке — абсолютный, не зависит от рабочей директории процесса
     photo_path = IMAGES_DIR / "111.jpg"
     try:
-        await callback.message.answer_photo(
-            photo=FSInputFile(photo_path), caption=text, reply_markup=kb.menu_back_kb()
-        )
+        await message.answer_photo(photo=FSInputFile(photo_path), caption=text)
     except Exception:
         # Картинка могла быть перемещена/удалена — не роняем хендлер,
         # отправляем хотя бы текст со ссылкой.
-        await callback.message.answer(text, reply_markup=kb.menu_back_kb())
-    await callback.answer()
+        await message.answer(text)
 
 
-@router.callback_query(F.data == "menu_profile")
-async def menu_profile(callback: CallbackQuery, bot: Bot) -> None:
+@router.message(F.text == "👤 Профиль")
+async def show_profile(message: Message, bot: Bot) -> None:
     """
-    Раздел «👤 Профиль» из инлайн-меню: сумма профитов, количество рефералов,
-    сколько дней в боте.
-    Доступен только пользователям, состоящим в обязательном рабочем чате
+    Вкладка «Профиль»: сумма профитов, количество рефералов, сколько дней в боте.
+    Доступна только пользователям, состоящим в обязательном рабочем чате
     (chat_id настраивается администратором через /admin -> «🔒 Чат для вкладки
     «Профиль»»). Если чат не настроен админом (пустое значение) — проверка
     пропускается и профиль доступен всем.
     """
-    user_id = callback.from_user.id
+    user_id = message.from_user.id
     required_chat_id = await db.get_setting("required_chat_id", "")
     required_chat_link = await db.get_setting("required_chat_link", "")
 
@@ -309,14 +273,12 @@ async def menu_profile(callback: CallbackQuery, bot: Bot) -> None:
             "Пожалуйста, вступите в чат по кнопке ниже и попробуйте снова 👇"
         )
         if required_chat_link:
-            await callback.message.answer(warning_text, reply_markup=kb.join_chat_kb(required_chat_link))
+            await message.answer(warning_text, reply_markup=kb.join_chat_kb(required_chat_link))
         else:
             # Ссылка ещё не настроена админом — предупреждаем без кнопки.
-            await callback.message.answer(
-                warning_text + "\n\n(Ссылка на чат пока не настроена администратором.)",
-                reply_markup=kb.menu_back_kb(),
+            await message.answer(
+                warning_text + "\n\n(Ссылка на чат пока не настроена администратором.)"
             )
-        await callback.answer()
         return
 
     # Пользователь прошёл проверку подписки (или проверка отключена) — показываем профиль.
@@ -324,38 +286,11 @@ async def menu_profile(callback: CallbackQuery, bot: Bot) -> None:
     if user is None:
         # На случай, если запись о пользователе почему-то отсутствует в БД —
         # создаём её "на лету", чтобы не ронять хендлер.
-        await db.add_user(user_id, callback.from_user.username, callback.from_user.first_name, None)
+        await db.add_user(user_id, message.from_user.username, message.from_user.first_name, None)
         user = await db.get_user(user_id)
 
     referrals_count = await db.get_referrals_count(user_id)
-    photo_path = IMAGES_DIR / "profile.png"
-    try:
-        await callback.message.answer_photo(
-            photo=FSInputFile(photo_path),
-            caption=format_profile(user, referrals_count),
-            parse_mode="HTML",
-            reply_markup=kb.profile_kb(),
-        )
-    except Exception:
-        await callback.message.answer(
-            format_profile(user, referrals_count), parse_mode="HTML", reply_markup=kb.profile_kb()
-        )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "menu_chats")
-async def menu_chats(callback: CallbackQuery) -> None:
-    """Раздел «💬 Чаты» из инлайн-меню: список ссылок, добавленных админом."""
-    chats = await db.get_all_chats()
-    if not chats:
-        await callback.message.answer(
-            "Пока нет добавленных чатов. Загляните позже 🙏", reply_markup=kb.menu_back_kb()
-        )
-        await callback.answer()
-        return
-
-    await callback.message.answer("💬 Чаты:", reply_markup=kb.chats_list_kb(chats))
-    await callback.answer()
+    await message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
 
 
 # ---------------------------------------------------------------------------
@@ -385,25 +320,16 @@ async def mentors_back_to_profile(callback: CallbackQuery) -> None:
         user = await db.get_user(user_id)
 
     referrals_count = await db.get_referrals_count(user_id)
-    photo_path = IMAGES_DIR / "profile.png"
-    try:
-        await callback.message.answer_photo(
-            photo=FSInputFile(photo_path),
-            caption=format_profile(user, referrals_count),
-            parse_mode="HTML",
-            reply_markup=kb.profile_kb(),
-        )
-    except Exception:
-        await callback.message.answer(
-            format_profile(user, referrals_count), parse_mode="HTML", reply_markup=kb.profile_kb()
-        )
+    await callback.message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
     await callback.answer()
 
 
 @router.callback_query(F.data == "mentors_home")
 async def mentors_home(callback: CallbackQuery) -> None:
-    """Кнопка «🏠 Домой» — выход из раздела наставников в инлайн-меню."""
-    await callback.message.answer("📋 Меню — выберите раздел:", reply_markup=kb.menu_inline())
+    """Кнопка «🏠 Домой» — выход из раздела наставников в главное меню."""
+    await callback.message.answer(
+        "🏠 Вы в главном меню. Используйте меню внизу экрана для навигации 👇"
+    )
     await callback.answer()
 
 
