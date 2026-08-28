@@ -6,7 +6,7 @@
 from html import escape as html_escape
 from pathlib import Path
 from typing import Optional
-from profile_render import generate_profile_card
+
 from aiogram import Bot, F, Router
 from aiogram.filters import CommandObject, CommandStart, Command
 from aiogram.fsm.context import FSMContext
