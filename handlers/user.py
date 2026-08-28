@@ -4,17 +4,32 @@
 """
 from html import escape as html_escape
 from pathlib import Path
+from typing import Optional
 
 from aiogram import Bot, F, Router
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, FSInputFile, Message
+from aiogram.types import (
+    CallbackQuery,
+    FSInputFile,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InlineQuery,
+    InlineQueryResultArticle,
+    InputTextMessageContent,
+    Message,
+)
 
 import database as db
 import keyboards as kb
 from config import ADMIN_IDS
 from states import ApplicationForm
-from utils import format_mentor_card, format_profile, is_chat_member
+from utils import (
+    format_mentor_card,
+    format_profile,
+    is_chat_member,
+    specialization_keys_to_plain_labels,
+)
 
 router = Router(name="user")
 
@@ -25,6 +40,10 @@ IMAGES_DIR = Path(__file__).resolve().parent.parent / "images"
 # Fallback-символ внутри тега используется у тех, кому Premium недоступен.
 NEW_REFERRAL_EMOJI_ID = "5458824569026532353"
 
+# Префикс диплинка для прикрепления к наставнику: t.me/<bot>?start=mentor_<id>
+# Используется и в inline-режиме (см. inline_query_handler), и как обычная /start-ссылка.
+MENTOR_DEEPLINK_PREFIX = "mentor_"
+
 ANKET_TEXT = (
     "🚀 Перед тем, как начать зарабатывать миллионы, нужно ответить на несколько вопросов!\n\n"
     "1. Опишите свой опыт работы в данной сфере? (Где раньше воркали, на каких площадках, сколько заработали)\n"
@@ -34,9 +53,52 @@ ANKET_TEXT = (
 )
 
 
+async def _attach_user_to_mentor(
+    bot: Bot,
+    user_id: int,
+    username: str | None,
+    first_name: str | None,
+    mentor_id: int,
+) -> Optional[dict]:
+    """
+    Закрепляет пользователя за наставником: создаёт запись пользователя при
+    необходимости, пишет mentor_id и уведомляет админов.
+    Возвращает словарь наставника (или None, если такого наставника не существует).
+    Используется и кнопкой «✅ Подать заявку», и диплинком /start mentor_<id>
+    (в т.ч. из инлайн-режима).
+    """
+    mentor = await db.get_mentor(mentor_id)
+    if not mentor:
+        return None
+
+    if not await db.user_exists(user_id):
+        await db.add_user(user_id, username, first_name, None)
+
+    await db.set_user_mentor(user_id, mentor_id)
+
+    who = html_escape(f"@{username}" if username else (first_name or str(user_id)))
+    admin_text = (
+        f"🎓 Пользователь {who} (ID: {user_id}) закрепился за наставником "
+        f"«{html_escape(mentor['name'])}»."
+    )
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(admin_id, admin_text)
+        except Exception:
+            # Админ мог не запускать бота / заблокировать его — пропускаем
+            continue
+
+    return mentor
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject, state: FSMContext, bot: Bot) -> None:
-    """Обработка команды /start, в т.ч. с реферальным payload вида /start 123456."""
+    """
+    Обработка команды /start, в т.ч. с payload:
+    - числовой payload вида /start 123456 — реферальная ссылка;
+    - payload вида /start mentor_5 — диплинк на прикрепление к наставнику
+      (в т.ч. присланный через инлайн-режим, см. inline_query_handler).
+    """
     await state.clear()
 
     user_id = message.from_user.id
@@ -44,9 +106,15 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
     first_name = message.from_user.first_name or "друг"
 
     referrer_id = None
+    mentor_deeplink_id: Optional[int] = None
+
     if command.args:
         payload = command.args.strip()
-        if payload.isdigit():
+        if payload.startswith(MENTOR_DEEPLINK_PREFIX):
+            candidate = payload[len(MENTOR_DEEPLINK_PREFIX):]
+            if candidate.isdigit():
+                mentor_deeplink_id = int(candidate)
+        elif payload.isdigit():
             candidate = int(payload)
             if candidate != user_id:
                 referrer_id = candidate
@@ -80,6 +148,18 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
         "Используй меню ниже, чтобы перейти в реферальную систему в любой момент 👇",
         reply_markup=kb.main_menu_reply(),
     )
+
+    # Пользователь перешёл по диплинку наставника (обычная ссылка или инлайн-режим) —
+    # закрепляем его сразу, тем же способом, что и кнопка «✅ Подать заявку».
+    if mentor_deeplink_id is not None:
+        mentor = await _attach_user_to_mentor(bot, user_id, username, first_name, mentor_deeplink_id)
+        if mentor:
+            await message.answer(
+                f"✅ Вы закрепились за наставником <b>{html_escape(mentor['name'])}</b>!\n"
+                "Он свяжется с вами в ближайшее время."
+            )
+        else:
+            await message.answer("Этот наставник больше недоступен.")
 
 
 @router.callback_query(F.data == "start_application")
@@ -251,17 +331,18 @@ async def mentor_view(callback: CallbackQuery) -> None:
 async def mentor_apply(callback: CallbackQuery, bot: Bot) -> None:
     """Пользователь нажал «✅ Подать заявку» — закрепляем его за наставником."""
     mentor_id = int(callback.data.split(":", 1)[1])
-    mentor = await db.get_mentor(mentor_id)
+
+    mentor = await _attach_user_to_mentor(
+        bot,
+        callback.from_user.id,
+        callback.from_user.username,
+        callback.from_user.first_name,
+        mentor_id,
+    )
 
     if not mentor:
         await callback.answer("Этот наставник больше недоступен.", show_alert=True)
         return
-
-    user_id = callback.from_user.id
-    if not await db.user_exists(user_id):
-        await db.add_user(user_id, callback.from_user.username, callback.from_user.first_name, None)
-
-    await db.set_user_mentor(user_id, mentor_id)
 
     await callback.message.answer(
         f"✅ Вы закрепились за наставником <b>{html_escape(mentor['name'])}</b>!\n"
@@ -269,17 +350,101 @@ async def mentor_apply(callback: CallbackQuery, bot: Bot) -> None:
     )
     await callback.answer("Готово ✅")
 
-    who = html_escape(
-        f"@{callback.from_user.username}" if callback.from_user.username
-        else (callback.from_user.first_name or str(user_id))
+
+# ---------------------------------------------------------------------------
+# Инлайн-режим: @<bot_username> ref / @<bot_username> <имя наставника>
+# ---------------------------------------------------------------------------
+# ВАЖНО: инлайн-режим нужно один раз включить у @BotFather командой /setinline
+# для этого бота — без этого Telegram не будет присылать боту InlineQuery,
+# даже если код обработчика полностью готов.
+
+_REF_QUERY_ALIASES = {"ref", "реф", "referral", "рефка", "ссылка"}
+_MAX_INLINE_RESULTS = 20
+
+
+def _build_ref_result(bot_username: str, user_id: int) -> InlineQueryResultArticle:
+    """Инлайн-результат: реферальная ссылка нажавшего пользователя."""
+    ref_link = f"https://t.me/{bot_username}?start={user_id}"
+    return InlineQueryResultArticle(
+        id="ref",
+        title="🔗 Моя реферальная ссылка",
+        description=ref_link,
+        input_message_content=InputTextMessageContent(
+            message_text=(
+                f"🔗 Реферальная ссылка:\n{ref_link}\n\n"
+                "Переходи и начинай зарабатывать вместе с нами!"
+            )
+        ),
     )
-    admin_text = (
-        f"🎓 Пользователь {who} (ID: {user_id}) закрепился за наставником "
-        f"«{html_escape(mentor['name'])}»."
+
+
+def _build_mentor_result(bot_username: str, mentor: dict) -> InlineQueryResultArticle:
+    """Инлайн-результат: карточка наставника со ссылкой на прикрепление к нему."""
+    mentor_id = mentor["mentor_id"]
+    deep_link = f"https://t.me/{bot_username}?start={MENTOR_DEEPLINK_PREFIX}{mentor_id}"
+
+    # В description и в кнопке (title/description) HTML не поддерживается Telegram —
+    # там используем «плоскую» подпись специализации (обычный эмодзи, без tg-emoji тега).
+    spec_labels = specialization_keys_to_plain_labels(mentor.get("specialization"))
+    spec_display = " • ".join(spec_labels) if spec_labels else "не указана"
+
+    return InlineQueryResultArticle(
+        id=f"mentor_{mentor_id}",
+        title=f"🎓 {mentor['name']}",
+        description=f"Специализация: {spec_display}",
+        input_message_content=InputTextMessageContent(
+            message_text=(
+                f"🎓 Наставник: <b>{html_escape(mentor['name'])}</b>\n"
+                f"Специализация: {spec_display}\n\n"
+                f"✅ Закрепиться: {deep_link}"
+            ),
+            parse_mode="HTML",
+        ),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Закрепиться за наставником", url=deep_link)]
+            ]
+        ),
     )
-    for admin_id in ADMIN_IDS:
-        try:
-            await bot.send_message(admin_id, admin_text)
-        except Exception:
-            # Админ мог не запускать бота / заблокировать его — пропускаем
-            continue
+
+
+@router.inline_query()
+async def inline_query_handler(inline_query: InlineQuery, bot: Bot) -> None:
+    """
+    Обрабатывает инлайн-запросы вида «@<bot_username> ...» в любом чате:
+    - пустой запрос или «ref» — своя реферальная ссылка (+ список наставников для удобства);
+    - любой другой текст — поиск наставника по имени (подстрокой, без учёта регистра),
+      результат — ссылка для прикрепления к нему.
+    """
+    query_text = (inline_query.query or "").strip()
+    me = await bot.get_me()
+    bot_username = me.username
+
+    results: list[InlineQueryResultArticle] = []
+
+    if not query_text:
+        results.append(_build_ref_result(bot_username, inline_query.from_user.id))
+        mentors = await db.get_all_mentors()
+        results.extend(_build_mentor_result(bot_username, m) for m in mentors[:_MAX_INLINE_RESULTS])
+    elif query_text.lower() in _REF_QUERY_ALIASES:
+        results.append(_build_ref_result(bot_username, inline_query.from_user.id))
+    else:
+        mentors = await db.get_all_mentors()
+        query_lower = query_text.lower()
+        matched = [m for m in mentors if query_lower in m["name"].lower()]
+
+        if matched:
+            results.extend(_build_mentor_result(bot_username, m) for m in matched[:_MAX_INLINE_RESULTS])
+        else:
+            results.append(
+                InlineQueryResultArticle(
+                    id="not_found",
+                    title="Наставник не найден",
+                    description=f"Нет наставника с именем «{query_text}»",
+                    input_message_content=InputTextMessageContent(
+                        message_text=f"Наставник «{html_escape(query_text)}» не найден."
+                    ),
+                )
+            )
+
+    await inline_query.answer(results[:50], cache_time=10, is_personal=True)
