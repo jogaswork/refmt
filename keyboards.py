@@ -1,7 +1,8 @@
 """
 Все inline- и reply-клавиатуры бота.
 """
-
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.enums import ButtonStyle
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -48,7 +49,8 @@ def main_menu_inline(is_admin: bool = False) -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 text="Профиль",
                 callback_data="menu_profile",
-                icon_custom_emoji_id="5258011929993026890"
+                icon_custom_emoji_id="5258011929993026890",
+                style=ButtonStyle.PRIMARY
             )
         ],
         [
