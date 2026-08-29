@@ -29,7 +29,7 @@ def main_menu_reply() -> ReplyKeyboardMarkup:
         keyboard=[
             [
                 KeyboardButton(
-                    text="📋 Меню",
+                    text="Меню",
                     icon_custom_emoji_id="5886223731088431288"
                 )
             ]
