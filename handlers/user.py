@@ -1,5 +1,5 @@
 """
-Обработчики пользовательского сценария
+Обработчики пользовательского сценария:
 /start -> подача заявки -> уведомление админов; реферальная система; меню.
 """
 
@@ -26,6 +26,7 @@ from aiogram.types import (
 import database as db
 import keyboards as kb
 import profile_render
+import ranks
 from config import ADMIN_IDS
 from states import ApplicationForm, NicknameChange
 from utils import (
@@ -199,23 +200,28 @@ async def process_application(message: Message, state: FSMContext, bot: Bot) -> 
 # ---------------------------------------------------------------------------
 
 MENU_IMAGE_PATH = Path(__file__).resolve().parent.parent / "images" / "menu.png"
+RANKS_IMAGE_PATH = Path(__file__).resolve().parent.parent / "images" / "rang.jpg"
+
+# Эмодзи, которое ставится в начало сообщения с рангами (по требованию заказчика).
+RANK_EMOJI_ID = "5278296377632250061"
 
 
 MAIN_MENU_TITLE = f'<tg-emoji emoji-id="5886223731088431288">📋</tg-emoji> Главное меню'
 
 
-async def _send_main_menu(message: Message) -> None:
+async def _send_main_menu(message: Message, user_id: int) -> None:
     """Отправляет меню картинкой images/menu.png с подписью и инлайн-кнопками."""
+    is_admin = user_id in ADMIN_IDS
     try:
         await message.answer_photo(
             photo=FSInputFile(MENU_IMAGE_PATH),
             caption=MAIN_MENU_TITLE,
-            reply_markup=kb.main_menu_inline(),
+            reply_markup=kb.main_menu_inline(is_admin),
         )
     except Exception:
         # Картинка могла быть не положена в images/menu.png — не роняем меню,
         # отправляем хотя бы текстовый вариант.
-        await message.answer(MAIN_MENU_TITLE, reply_markup=kb.main_menu_inline())
+        await message.answer(MAIN_MENU_TITLE, reply_markup=kb.main_menu_inline(is_admin))
 
 
 @router.message(F.text == "📋 Меню")
@@ -223,17 +229,38 @@ async def show_main_menu(message: Message) -> None:
     """
     Кнопка «📋 Меню»: сначала отправляется одно сообщение с эмодзи-заставкой,
     затем — через небольшую паузу — само меню картинкой (Профиль / Реферальная
-    система / Чаты).
+    система / Ранги / Чаты, и «🛠 Админ-панель» — только для админов).
     """
     await message.answer(f'<tg-emoji emoji-id="{MENU_INTRO_EMOJI_ID}">🔥</tg-emoji>')
     await asyncio.sleep(MENU_INTRO_DELAY)
-    await _send_main_menu(message)
+    await _send_main_menu(message, message.from_user.id)
 
 
 @router.callback_query(F.data == "menu_back")
 async def menu_back(callback: CallbackQuery) -> None:
     """Возврат в меню без повторной эмодзи-заставки (уже показывали её)."""
-    await _send_main_menu(callback.message)
+    await _send_main_menu(callback.message, callback.from_user.id)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "menu_ranks")
+async def menu_ranks(callback: CallbackQuery) -> None:
+    """Пункт меню «🏆 Ранги» — картинка images/rang.jpg + список рангов, текущий помечен."""
+    user = await db.get_user(callback.from_user.id)
+    profit = (user.get("profit") if user else 0) or 0
+    current_rank = ranks.get_rank(profit)
+
+    caption = (
+        f'<tg-emoji emoji-id="{RANK_EMOJI_ID}">🏆</tg-emoji> Ваш текущий ранг: <b>{current_rank}</b>\n\n'
+        f"{ranks.format_ranks_list(profit)}"
+    )
+
+    try:
+        await callback.message.answer_photo(
+            photo=FSInputFile(RANKS_IMAGE_PATH), caption=caption, reply_markup=kb.back_to_menu_kb()
+        )
+    except Exception:
+        await callback.message.answer(caption, reply_markup=kb.back_to_menu_kb())
     await callback.answer()
 
 
@@ -279,7 +306,8 @@ async def menu_chats(callback: CallbackQuery) -> None:
 async def _send_profile_card(message: Message, user_id: int) -> None:
     """
     Отправляет графическую карточку профиля (assets/profile.png + данные) с
-    текстом format_profile() в подписи и кнопками (наставники / смена ника / меню).
+    текстом format_profile() + текущим рангом в подписи и кнопками (наставники /
+    смена ника / меню).
     """
     user = await db.get_user(user_id)
     if user is None:
@@ -287,19 +315,17 @@ async def _send_profile_card(message: Message, user_id: int) -> None:
         user = await db.get_user(user_id)
 
     referrals_count = await db.get_referrals_count(user_id)
+    rank_line = f"🏆 Ранг: <b>{ranks.get_rank(user.get('profit') or 0)}</b>"
+    caption = f"{format_profile(user, referrals_count)}\n\n{rank_line}"
 
     try:
         card_bytes = profile_render.generate_profile_card(user, referrals_count)
         photo = BufferedInputFile(card_bytes.read(), filename="profile.png")
-        await message.answer_photo(
-            photo=photo,
-            caption=format_profile(user, referrals_count),
-            reply_markup=kb.profile_kb(),
-        )
+        await message.answer_photo(photo=photo, caption=caption, reply_markup=kb.profile_kb())
     except Exception:
         # Если картинка почему-то не собралась (нет шаблона/шрифта на сервере) —
         # не роняем хендлер, показываем хотя бы прежний текстовый профиль.
-        await message.answer(format_profile(user, referrals_count), reply_markup=kb.profile_kb())
+        await message.answer(caption, reply_markup=kb.profile_kb())
 
 
 @router.callback_query(F.data == "menu_profile")
@@ -409,7 +435,7 @@ async def mentors_back_to_profile(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == "mentors_home")
 async def mentors_home(callback: CallbackQuery) -> None:
-    await _send_main_menu(callback.message)
+    await _send_main_menu(callback.message, callback.from_user.id)
     await callback.answer()
 
 

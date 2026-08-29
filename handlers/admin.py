@@ -68,6 +68,17 @@ async def admin_back(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
 
 
+@router.callback_query(F.data == "menu_admin_panel")
+async def open_admin_panel_from_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    """Кнопка «🛠 Админ-панель» в главном меню — видна только админам (см. keyboards.main_menu_inline)."""
+    if not _is_admin(callback.from_user.id):
+        await callback.answer()
+        return
+    await state.clear()
+    await callback.message.answer("🛠 Админ-панель", reply_markup=kb.admin_menu())
+    await callback.answer()
+
+
 # ---------------------------------------------------------------------------
 # Нерассмотренные заявки
 # ---------------------------------------------------------------------------
