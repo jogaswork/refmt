@@ -24,9 +24,16 @@ def start_application_inline() -> InlineKeyboardMarkup:
 
 
 def main_menu_reply() -> ReplyKeyboardMarkup:
-    """Постоянное меню внизу экрана — теперь одна кнопка «📋 Меню»."""
+    """Постоянное меню внизу экрана — одна кнопка «Меню»."""
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="📋 Меню")]],
+        keyboard=[
+            [
+                KeyboardButton(
+                    text="Меню",
+                    icon_custom_emoji_id="5886223731088431288"
+                )
+            ]
+        ],
         resize_keyboard=True,
         is_persistent=True,
     )
