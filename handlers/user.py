@@ -295,22 +295,7 @@ async def menu_chats(callback: CallbackQuery) -> None:
         await callback.answer()
         return
 
-async def process_project_info(callback: CallbackQuery):
-    text = (
-        '<tg-emoji emoji-id="5870886806601338791">📑</tg-emoji> <b>Информация о проекте MTR</b>\n'
-        '└── Дата запуска: 28.08.2026\n\n'
-        '<b>Процент выплат:</b>\n'
-        '├── Прямой перевод: 80%\n'
-        '├── Крипто деп: 80%\n'
-        '├── Пополнение: 80%\n'
-        '└── Тех. поддержка: 70%'
-    )
-    
-    await callback.message.answer(
-        text=text,
-        reply_markup=kb.chats_list_kb(chats),
-        parse_mode="HTML"
-    )
+    await callback.message.answer("💬 Наши чаты:", reply_markup=kb.chats_list_kb(chats))
     await callback.answer()
 
 
