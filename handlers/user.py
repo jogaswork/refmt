@@ -296,7 +296,7 @@ async def menu_chats(callback: CallbackQuery) -> None:
         await callback.answer()
         return
 
-    await callback.message.answer(<tg-emoji emoji-id="5870886806601338791">💬</tg-emoji>"Наши чаты:", reply_markup=kb.chats_list_kb(chats))
+    await callback.message.answer("💬Наши чаты:", reply_markup=kb.chats_list_kb(chats))
     await callback.answer()
 
 
