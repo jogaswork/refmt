@@ -32,15 +32,21 @@ def main_menu_reply() -> ReplyKeyboardMarkup:
     )
 
 
-def main_menu_inline() -> InlineKeyboardMarkup:
-    """Инлайн-меню, которое приходит после эмодзи-заставки по кнопке «📋 Меню»."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="👤 Профиль", callback_data="menu_profile")],
-            [InlineKeyboardButton(text="🔗 Реферальная система", callback_data="menu_referral")],
-            [InlineKeyboardButton(text="💬 Чаты", callback_data="menu_chats")],
-        ]
-    )
+def main_menu_inline(is_admin: bool = False) -> InlineKeyboardMarkup:
+    """
+    Инлайн-меню, которое приходит после эмодзи-заставки по кнопке «📋 Меню».
+    Кнопка «🛠 Админ-панель» добавляется только если is_admin=True — обычные
+    пользователи её не видят вообще (см. handlers/user.py -> _send_main_menu).
+    """
+    rows = [
+        [InlineKeyboardButton(text="👤 Профиль", callback_data="menu_profile")],
+        [InlineKeyboardButton(text="🔗 Реферальная система", callback_data="menu_referral")],
+        [InlineKeyboardButton(text="🏆 Ранги", callback_data="menu_ranks")],
+        [InlineKeyboardButton(text="💬 Чаты", callback_data="menu_chats")],
+    ]
+    if is_admin:
+        rows.append([InlineKeyboardButton(text="🛠 Админ-панель", callback_data="menu_admin_panel")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def back_to_menu_kb() -> InlineKeyboardMarkup:
