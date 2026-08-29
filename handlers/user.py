@@ -315,12 +315,15 @@ async def _send_profile_card(message: Message, user_id: int) -> None:
         user = await db.get_user(user_id)
 
     referrals_count = await db.get_referrals_count(user_id)
-    rank_line = f"🏆 Ранг: <b>{ranks.get_rank(user.get('profit') or 0)}</b>"
+    rank_line = (
+        f'<tg-emoji emoji-id="{RANK_EMOJI_ID}">🏆</tg-emoji> '
+        f"Ранг: <b>{ranks.get_rank(user.get('profit') or 0)}</b>"
+    )
     caption = f"{format_profile(user, referrals_count)}\n\n{rank_line}"
 
     try:
         card_bytes = profile_render.generate_profile_card(user, referrals_count)
-        photo = BufferedInputFile(card_bytes.read(), filename="profile.png")
+        photo = BufferedInputFile(card_bytes.read(), filename="profile.jpg")
         await message.answer_photo(photo=photo, caption=caption, reply_markup=kb.profile_kb())
     except Exception:
         # Если картинка почему-то не собралась (нет шаблона/шрифта на сервере) —
