@@ -224,7 +224,7 @@ async def _send_main_menu(message: Message, user_id: int) -> None:
         await message.answer(MAIN_MENU_TITLE, reply_markup=kb.main_menu_inline(is_admin))
 
 
-@router.message(F.text == "📋 Меню")
+@router.message(F.text == "Меню")
 async def show_main_menu(message: Message) -> None:
     """
     Кнопка «📋 Меню»: сначала отправляется одно сообщение с эмодзи-заставкой,
