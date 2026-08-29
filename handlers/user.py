@@ -295,7 +295,7 @@ async def menu_chats(callback: CallbackQuery) -> None:
         await callback.answer()
         return
 
-@router.callback_query(F.data == "menu_chats")
+@router.callback_query(F.data == "chats_list_kb")
 async def process_project_info(callback: CallbackQuery):
     await callback.message.answer(
         """<tg-emoji emoji-id="5870886806601338791">📑</tg-emoji> <b>Информация о проекте MTR</b>
