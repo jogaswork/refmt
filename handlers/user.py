@@ -295,20 +295,21 @@ async def menu_chats(callback: CallbackQuery) -> None:
         await callback.answer()
         return
 
-await callback.message.answer(
-    """<tg-emoji emoji-id="5870886806601338791">📋</tg-emoji> <b>Информация о проекте MTR</b>
-└ Дата запуска: 28.08.2026
+@router.callback_query(F.data == "your_callback_data") # замените на ваш фильтр
+async def process_project_info(callback: CallbackQuery):
+    await callback.message.answer(
+        """<tg-emoji emoji-id="5870886806601338791">📑</tg-emoji> <b>Информация о проекте MTR</b>
+└── Дата запуска: 28.08.2026
 
 <b>Процент выплат:</b>
-├ Прямой перевод: 80%
-├ Крипто деп: 80%
-├ Пополнение: 80%
-└ Тех. поддержка: 70%""",
-    reply_markup=kb.chats_list_kb(chats),
-    parse_mode="HTML"
-)
-
-await callback.answer()
+├── Прямой перевод: 80%
+├── Крипто деп: 80%
+├── Пополнение: 80%
+└── Тех. поддержка: 70%""",
+        reply_markup=kb.chats_list_kb(chats),
+        parse_mode="HTML"
+    )
+    await callback.answer()  # <-- СЮДА ОБЯЗАТЕЛЬНО НУЖЕН ОТСТУП (4 пробела/Tab)
 
 
 # ---------------------------------------------------------------------------
