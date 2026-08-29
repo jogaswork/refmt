@@ -295,14 +295,16 @@ async def menu_chats(callback: CallbackQuery) -> None:
         await callback.answer()
         return
 
-    await callback.message.answer("<tg-emoji emoji-id="5870886806601338791">💬</tg-emoji> Информация о проекте MTR
+    await callback.message.answer(<tg-emoji emoji-id="5870886806601338791>💬</tg-emoji> Информация о проекте MTR
 └ Дата запуска: 28.08.2026
 
 Проценты:
 ├ П: 80%
 ├ К: 80%
 ├ П: 80%
-└ Т: 70%", reply_markup=kb.chats_list_kb(chats))
+└ Т: 70%", 
+reply_markup=kb.chats_list_kb(chats))
+
     await callback.answer()
 
 
