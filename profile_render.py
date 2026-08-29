@@ -7,6 +7,7 @@
     fonts/Montserrat-Bold.ttf     — шрифт (скачать на fonts.google.com)
 """
 
+import functools
 import io
 import datetime
 from pathlib import Path
@@ -44,6 +45,7 @@ def format_int(value: int) -> str:
     return f"{value:,}".replace(",", " ")
 
 
+@functools.lru_cache(maxsize=16)
 def _load_font(size: int) -> ImageFont.FreeTypeFont:
     try:
         return ImageFont.truetype(str(FONT_PATH), size)
@@ -101,6 +103,12 @@ def display_nickname(user: dict[str, Any]) -> str:
     )
 
 
+@functools.lru_cache(maxsize=1)
+def _get_base_template() -> Image.Image:
+    """Шаблон читается с диска один раз за всё время работы бота, дальше — из памяти."""
+    return Image.open(TEMPLATE_PATH).convert("RGB")
+
+
 def generate_profile_card(user: dict[str, Any], referrals_count: int) -> io.BytesIO:
     """
     Накладывает данные профиля на assets/profile.png и возвращает готовое
@@ -109,7 +117,7 @@ def generate_profile_card(user: dict[str, Any], referrals_count: int) -> io.Byte
     user — словарь, как возвращает database.get_user() (ключи: nickname,
     username, first_name, joined_at, profit, max_profit, ...).
     """
-    base = Image.open(TEMPLATE_PATH).convert("RGBA")
+    base = _get_base_template().copy()
     draw = ImageDraw.Draw(base)
 
     fields = {
@@ -124,6 +132,8 @@ def generate_profile_card(user: dict[str, Any], referrals_count: int) -> io.Byte
         _draw_centered_text(draw, text, FIELD_BOXES[key])
 
     buffer = io.BytesIO()
-    base.convert("RGB").save(buffer, format="PNG")
+    # JPEG вместо PNG: файл в разы легче -> Telegram отправляет его почти мгновенно,
+    # а не 20-30 секунд, как было с тяжёлым PNG.
+    base.save(buffer, format="JPEG", quality=90, optimize=True)
     buffer.seek(0)
     return buffer
