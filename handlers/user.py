@@ -295,7 +295,7 @@ async def menu_chats(callback: CallbackQuery) -> None:
         await callback.answer()
         return
 
-@router.callback_query(F.data == "your_callback_data") # замените на ваш фильтр
+@router.callback_query(F.data == "menu_chats")
 async def process_project_info(callback: CallbackQuery):
     await callback.message.answer(
         """<tg-emoji emoji-id="5870886806601338791">📑</tg-emoji> <b>Информация о проекте MTR</b>
@@ -309,7 +309,7 @@ async def process_project_info(callback: CallbackQuery):
         reply_markup=kb.chats_list_kb(chats),
         parse_mode="HTML"
     )
-    await callback.answer()  # <-- СЮДА ОБЯЗАТЕЛЬНО НУЖЕН ОТСТУП (4 пробела/Tab)
+    await callback.answer()
 
 
 # ---------------------------------------------------------------------------
