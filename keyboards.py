@@ -42,17 +42,46 @@ def main_menu_reply() -> ReplyKeyboardMarkup:
 def main_menu_inline(is_admin: bool = False) -> InlineKeyboardMarkup:
     """
     Инлайн-меню, которое приходит после эмодзи-заставки по кнопке «📋 Меню».
-    Кнопка «🛠 Админ-панель» добавляется только если is_admin=True — обычные
-    пользователи её не видят вообще (см. handlers/user.py -> _send_main_menu).
     """
     rows = [
-        [InlineKeyboardButton(text="👤 Профиль", callback_data="menu_profile")],
-        [InlineKeyboardButton(text="🔗 Реферальная система", callback_data="menu_referral")],
-        [InlineKeyboardButton(text="🏆 Ранги", callback_data="menu_ranks")],
-        [InlineKeyboardButton(text="💬 Чаты", callback_data="menu_chats")],
+        [
+            InlineKeyboardButton(
+                text="Профиль",
+                callback_data="menu_profile",
+                icon_custom_emoji_id="5258011929993026890"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="Реферальная система",
+                callback_data="menu_referral",
+                icon_custom_emoji_id="5256143829672672750"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="Ранги",
+                callback_data="menu_ranks",
+                icon_custom_emoji_id="5345892905103932200"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="Чаты",
+                callback_data="menu_chats",
+                icon_custom_emoji_id="5260535596941582167"
+            )
+        ],
     ]
+
     if is_admin:
-        rows.append([InlineKeyboardButton(text="🛠 Админ-панель", callback_data="menu_admin_panel")])
+        rows.append([
+            InlineKeyboardButton(
+                text="🛠 Админ-панель",
+                callback_data="menu_admin_panel"
+            )
+        ])
+
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
