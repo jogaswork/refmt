@@ -206,7 +206,15 @@ RANKS_IMAGE_PATH = Path(__file__).resolve().parent.parent / "images" / "rang.jpg
 RANK_EMOJI_ID = "5278296377632250061"
 
 
-MAIN_MENU_TITLE = f'<tg-emoji emoji-id="5886223731088431288">📋</tg-emoji> Главное меню'
+MAIN_MENU_TITLE = f'<tg-emoji emoji-id="5886223731088431288">📋</tg-emoji> Главное меню
+Информация о проекте MTR
+└ Дата запуска: 28.08.2026
+
+Процент выплат:
+├ Прямой перевод: 80%
+├ Крипто деп: 80%
+├ Пополнение: 80%
+└ Тех. поддержка: 70%'
 
 
 async def _send_main_menu(message: Message, user_id: int) -> None:
