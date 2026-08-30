@@ -207,14 +207,7 @@ RANK_EMOJI_ID = "5278296377632250061"
 
 
 MAIN_MENU_TITLE = (
-f'<tg-emoji emoji-id="5886223731088431288">📋</tg-emoji> Главное меню\n\n'
-"Информация о проекте MTR TEAM\n\n"
-"└ Дата запуска: 28.08.2026\n\n"
-"Процент выплат:\n"
-"├ Прямой перевод: 80%\n"
-"├ Крипто деп: 80%\n"
-"├ Пополнение: 80%\n"
-"└ Тех. поддержка: 70%"
+f'<tg-emoji emoji-id="5886223731088431288">📋</tg-emoji> Главное меню'
 )
 
 async def _send_main_menu(message: Message, user_id: int) -> None:
