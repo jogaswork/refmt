@@ -190,17 +190,29 @@ def application_decision_kb(app_id: int) -> InlineKeyboardMarkup:
 def admin_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📋 Нерассмотренные заявки", callback_data="admin_pending")],
-            [InlineKeyboardButton(text="🔗 Настройка группы", callback_data="admin_group_setup")],
-            [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
-            [InlineKeyboardButton(text="👥 Пользователи (Рефералы)", callback_data="admin_users")],
-            [InlineKeyboardButton(text="🔒 Чат для вкладки «Профиль»", callback_data="admin_profile_chat_setup")],
-            [InlineKeyboardButton(text="💰 Начислить профит", callback_data="admin_add_profit")],
-            [InlineKeyboardButton(text="🎓 Наставники", callback_data="admin_mentors")],
-            [InlineKeyboardButton(text="💬 Чаты", callback_data="admin_chats")],
-            [InlineKeyboardButton(text="🚫 Бан / разбан пользователя", callback_data="admin_ban_user")],
-            [InlineKeyboardButton(text="✉️ Сообщение одному пользователю", callback_data="admin_message_user")],
-            [InlineKeyboardButton(text="📝 Логи бота", callback_data="admin_logs")],
+            [
+                InlineKeyboardButton(text="📋 Нерассмотренные заявки", callback_data="admin_pending"),
+                InlineKeyboardButton(text="🔗 Настройка группы", callback_data="admin_group_setup"),
+            ],
+            [
+                InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast"),
+                InlineKeyboardButton(text="👥 Пользователи (Рефералы)", callback_data="admin_users"),
+            ],
+            [
+                InlineKeyboardButton(text="🔒 Чат для вкладки «Профиль»", callback_data="admin_profile_chat_setup"),
+                InlineKeyboardButton(text="💰 Начислить профит", callback_data="admin_add_profit"),
+            ],
+            [
+                InlineKeyboardButton(text="🎓 Наставники", callback_data="admin_mentors"),
+                InlineKeyboardButton(text="💬 Чаты", callback_data="admin_chats"),
+            ],
+            [
+                InlineKeyboardButton(text="🚫 Бан / разбан пользователя", callback_data="admin_ban_user"),
+                InlineKeyboardButton(text="✉️ Сообщение одному пользователю", callback_data="admin_message_user"),
+            ],
+            [
+                InlineKeyboardButton(text="📝 Логи бота", callback_data="admin_logs"),
+            ],
         ]
     )
 
