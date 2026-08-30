@@ -304,16 +304,17 @@ async def menu_chats(callback: CallbackQuery) -> None:
         await callback.answer()
         return
 
-    await callback.message.answer (
-f"Информация о проекте MTR TEAM\n\n"
-"└ Дата запуска: 28.08.2026\n\n"
-"Процент выплат:\n"
-"├ Прямой перевод: 80%\n"
-"├ Крипто деп: 80%\n"
-"├ Пополнение: 80%\n"
-"└ Тех. поддержка: 70%"
-)reply_markup=kb.chats_list_kb(chats)
-    await callback.answer()
+await callback.message.answer(
+    f"Информация о проекте MTR TEAM\n\n"
+    "└ Дата запуска: 28.08.2026\n\n"
+    "Процент выплат:\n"
+    "├ Прямой перевод: 80%\n"
+    "├ Крипто деп: 80%\n"
+    "├ Пополнение: 80%\n"
+    "└ Тех. поддержка: 70%",
+    reply_markup=kb.chats_list_kb(chats)
+)
+await callback.answer()
 
 
 # ---------------------------------------------------------------------------
