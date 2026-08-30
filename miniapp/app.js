@@ -62,14 +62,14 @@ const userId =
     БЕЗ символа @.
 */
 
-const BOT_USERNAME = "MTR_REF_BOT";
+const BOT_USERNAME = "@Mtreferall_bot";
 
 
 /*
     Здесь укажи username поддержки.
 */
 
-const SUPPORT_USERNAME = "MTR_SUPPORT";
+const SUPPORT_USERNAME = "@jogas_wor";
 
 
 /* =========================================
