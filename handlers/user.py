@@ -312,8 +312,7 @@ f"Информация о проекте MTR TEAM\n\n"
 "├ Крипто деп: 80%\n"
 "├ Пополнение: 80%\n"
 "└ Тех. поддержка: 70%"
-) 
-    reply_markup=kb.chats_list_kb(chats)
+),reply_markup=kb.chats_list_kb(chats)
     await callback.answer()
 
 
