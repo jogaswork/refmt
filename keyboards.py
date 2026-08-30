@@ -19,8 +19,7 @@ from config import MENTOR_SPECIALIZATIONS
 def start_application_inline() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✅Перейти к заполнению заявки!", callback_data="start_application")],
-            style="primary"
+            [InlineKeyboardButton(text="✅Перейти к заполнению заявки!", callback_data="start_application", style="danger")],
         ]
     )
 
