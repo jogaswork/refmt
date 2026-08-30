@@ -65,6 +65,14 @@ CREATE TABLE IF NOT EXISTS chat_links (
     url TEXT NOT NULL,
     created_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS mentor_profit_log (
+    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL,
+    mentor_id INTEGER NOT NULL,
+    amount REAL NOT NULL,
+    created_at TEXT
+);
 """
 
 
@@ -113,6 +121,19 @@ async def init_db() -> None:
         if "telegram_id" not in mentor_columns:
             await db_conn.execute("ALTER TABLE mentors ADD COLUMN telegram_id INTEGER")
             await db_conn.commit()
+
+        await db_conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mentor_profit_log (
+                log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id INTEGER NOT NULL,
+                mentor_id INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                created_at TEXT
+            )
+            """
+        )
+        await db_conn.commit()
 
 
 def _row_to_dict(cursor: aiosqlite.Cursor, row: aiosqlite.Row) -> dict[str, Any]:
@@ -408,6 +429,67 @@ async def update_mentor_telegram_id(mentor_id: int, telegram_id: Optional[int]) 
             "UPDATE mentors SET telegram_id = ? WHERE mentor_id = ?", (telegram_id, mentor_id)
         )
         await db_conn.commit()
+
+
+async def get_mentor_by_telegram_id(telegram_id: int) -> Optional[dict[str, Any]]:
+    """Находит наставника по его личному Telegram ID — используется для доступа к кабинету наставника."""
+    async with aiosqlite.connect(DB_PATH) as db_conn:
+        cursor = await db_conn.execute("SELECT * FROM mentors WHERE telegram_id = ?", (telegram_id,))
+        row = await cursor.fetchone()
+        return _row_to_dict(cursor, row) if row else None
+
+
+async def get_mentor_students(mentor_id: int) -> list[dict[str, Any]]:
+    """Все ученики, закреплённые за наставником (сортировка — по дате присоединения)."""
+    async with aiosqlite.connect(DB_PATH) as db_conn:
+        cursor = await db_conn.execute(
+            "SELECT * FROM users WHERE mentor_id = ? ORDER BY joined_at ASC", (mentor_id,)
+        )
+        rows = await cursor.fetchall()
+        return [_row_to_dict(cursor, row) for row in rows]
+
+
+async def log_mentor_profit(student_id: int, mentor_id: int, amount: float) -> int:
+    """
+    Фиксирует начисление профита учеником от конкретного наставника (для подсчёта
+    прогресса стажировки) и параллельно обновляет общий профит ученика в users.
+    """
+    created_at = datetime.datetime.utcnow().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db_conn:
+        cursor = await db_conn.execute(
+            """
+            INSERT INTO mentor_profit_log (student_id, mentor_id, amount, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (student_id, mentor_id, amount, created_at),
+        )
+        await db_conn.commit()
+        log_id = cursor.lastrowid
+
+    await add_profit(student_id, amount)
+    return log_id
+
+
+async def get_mentor_profit_count(student_id: int, mentor_id: int) -> int:
+    """Сколько раз конкретный наставник начислял профит этому ученику."""
+    async with aiosqlite.connect(DB_PATH) as db_conn:
+        cursor = await db_conn.execute(
+            "SELECT COUNT(*) FROM mentor_profit_log WHERE student_id = ? AND mentor_id = ?",
+            (student_id, mentor_id),
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else 0
+
+
+async def get_mentor_profit_sum(student_id: int, mentor_id: int) -> float:
+    """Сумма профита, начисленного этим наставником этому ученику."""
+    async with aiosqlite.connect(DB_PATH) as db_conn:
+        cursor = await db_conn.execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM mentor_profit_log WHERE student_id = ? AND mentor_id = ?",
+            (student_id, mentor_id),
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else 0.0
 
 
 async def delete_mentor(mentor_id: int) -> None:

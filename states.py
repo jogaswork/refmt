@@ -65,6 +65,11 @@ class MentorEditTelegramId(StatesGroup):
     waiting_for_telegram_id = State()
 
 
+class MentorPanelProfit(StatesGroup):
+    """Начисление профита ученику из личного кабинета наставника."""
+    waiting_for_amount = State()
+
+
 class NicknameChange(StatesGroup):
     """Смена кастомного ника в карточке профиля."""
     waiting_for_nickname = State()

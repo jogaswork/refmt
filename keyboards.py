@@ -19,7 +19,7 @@ from config import MENTOR_SPECIALIZATIONS
 def start_application_inline() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✅Перейти к заполнению заявки!", callback_data="start_application", style="danger")],
+            [InlineKeyboardButton(text="✅Перейти к заполнению заявки!", callback_data="start_application")]
         ]
     )
 
@@ -31,8 +31,7 @@ def main_menu_reply() -> ReplyKeyboardMarkup:
             [
                 KeyboardButton(
                     text="Меню",
-                    icon_custom_emoji_id="5886223731088431288",
-                    style="primary"
+                    icon_custom_emoji_id="5886223731088431288"
                 )
             ]
         ],
@@ -41,7 +40,7 @@ def main_menu_reply() -> ReplyKeyboardMarkup:
     )
 
 
-def main_menu_inline(is_admin: bool = False) -> InlineKeyboardMarkup:
+def main_menu_inline(is_admin: bool = False, is_mentor: bool = False) -> InlineKeyboardMarkup:
     """
     Инлайн-меню, которое приходит после эмодзи-заставки по кнопке «📋 Меню».
     """
@@ -76,6 +75,14 @@ def main_menu_inline(is_admin: bool = False) -> InlineKeyboardMarkup:
             )
         ],
     ]
+
+    if is_mentor:
+        rows.append([
+            InlineKeyboardButton(
+                text="🎓 Кабинет наставника",
+                callback_data="mentor_panel_open"
+            )
+        ])
 
     if is_admin:
         rows.append([
@@ -160,6 +167,29 @@ def mentor_spec_toggle_kb(selected: set[str]) -> InlineKeyboardMarkup:
     ]
     rows.append([InlineKeyboardButton(text="Готово ➡️", callback_data="mentor_spec_done")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+# ---------------------------------------------------------------------------
+# Кабинет наставника (личная панель управления учениками)
+# ---------------------------------------------------------------------------
+
+def mentor_panel_students_kb(students: list[dict]) -> InlineKeyboardMarkup:
+    """Список учеников наставника — каждый как отдельная кнопка с прогрессом в тексте (см. хендлер)."""
+    rows = [
+        [InlineKeyboardButton(text=s["label"], callback_data=f"mentor_panel_student:{s['user_id']}")]
+        for s in students
+    ]
+    rows.append([InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="menu_back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def mentor_panel_student_card_kb(student_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="➕ Добавить профит", callback_data=f"mentor_panel_add_profit:{student_id}")],
+            [InlineKeyboardButton(text="⬅️ К списку учеников", callback_data="mentor_panel_open")],
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------
