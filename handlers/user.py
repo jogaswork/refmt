@@ -127,7 +127,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
 
     if already_accepted:
         await message.answer(
-            f"С возвращением, {html_escape(first_name)}! Вы уже в команде 🎉\n"
+            f'С возвращением, {html_escape(first_name)}! Вы уже в команде <tg-emoji emoji-id="5372917041193828849">👇</tg-emoji>\n'
             "Повторная подача заявки не требуется."
         )
     else:
