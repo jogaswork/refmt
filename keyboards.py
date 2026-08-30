@@ -31,7 +31,8 @@ def main_menu_reply() -> ReplyKeyboardMarkup:
             [
                 KeyboardButton(
                     text="Меню",
-                    icon_custom_emoji_id="5886223731088431288"
+                    icon_custom_emoji_id="5886223731088431288",
+                    style="primary"
                 )
             ]
         ],
