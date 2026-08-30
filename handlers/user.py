@@ -137,7 +137,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
         )
 
     await message.answer(
-        "Используй меню ниже, чтобы перейти в реферальную систему в любой момент 👇",
+        "Используй меню ниже👇",
         reply_markup=kb.main_menu_reply(),
     )
 
