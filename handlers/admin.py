@@ -20,6 +20,7 @@ from states import (
     GroupLinkSetup,
     MentorEditConditions,
     MentorEditSpecialization,
+    MentorEditTelegramId,
     MentorEditText,
     MentorForm,
     PersonalMessage,
@@ -534,14 +535,40 @@ async def admin_mentor_add_profit_count(message: Message, state: FSMContext) -> 
         return
 
     profit_count = int(raw)
+    await state.update_data(profit_count=profit_count)
+    await state.set_state(MentorForm.waiting_for_telegram_id)
+    await message.answer(
+        "Теперь отправьте Telegram ID наставника — на него будут приходить уведомления "
+        "с анкетой каждого нового ученика.\n\n"
+        "Узнать свой ID наставник может, например, у @userinfobot.\n\n"
+        "Если ID пока нет — отправьте «-»."
+    )
+
+
+@router.message(MentorForm.waiting_for_telegram_id)
+async def admin_mentor_add_telegram_id(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    raw = (message.text or "").strip()
+    telegram_id: Optional[int] = None
+    if raw != "-":
+        if not raw.isdigit():
+            await message.answer(
+                "Telegram ID должен быть числом, либо отправьте «-», чтобы пропустить. Попробуйте ещё раз:"
+            )
+            return
+        telegram_id = int(raw)
+
     data = await state.get_data()
     name = data.get("name", "")
     description = data.get("description", "")
     specialization = ",".join(data.get("spec_selected", []))
     percent = data.get("percent", 0)
+    profit_count = data.get("profit_count", 0)
     await state.clear()
 
-    mentor_id = await db.create_mentor(name, description, specialization, percent, profit_count)
+    mentor_id = await db.create_mentor(name, description, specialization, percent, profit_count, telegram_id)
     mentor = await db.get_mentor(mentor_id)
 
     await message.answer("✅ Наставник добавлен!\n\n" + format_mentor_card(mentor), reply_markup=kb.admin_back_kb())
@@ -723,6 +750,43 @@ async def admin_mentor_edit_conditions_count(message: Message, state: FSMContext
 
     await db.update_mentor_conditions(mentor_id, percent, profit_count)
     await message.answer("✅ Условия обновлены!", reply_markup=kb.admin_mentor_edit_menu_kb(mentor_id))
+
+
+@router.callback_query(F.data.startswith("admin_mentor_edit_telegram_id:"))
+async def admin_mentor_edit_telegram_id_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return await callback.answer()
+
+    mentor_id = int(callback.data.split(":", 1)[1])
+    await state.update_data(mentor_id=mentor_id)
+    await state.set_state(MentorEditTelegramId.waiting_for_telegram_id)
+    await callback.message.answer("Отправьте новый Telegram ID наставника (или «-», чтобы убрать):")
+    await callback.answer()
+
+
+@router.message(MentorEditTelegramId.waiting_for_telegram_id)
+async def admin_mentor_edit_telegram_id_process(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    raw = (message.text or "").strip()
+    telegram_id: Optional[int] = None
+    if raw != "-":
+        if not raw.isdigit():
+            await message.answer("Telegram ID должен быть числом, либо «-». Попробуйте ещё раз:")
+            return
+        telegram_id = int(raw)
+
+    data = await state.get_data()
+    mentor_id = data.get("mentor_id")
+    await state.clear()
+    if mentor_id is None:
+        return
+
+    await db.update_mentor_telegram_id(mentor_id, telegram_id)
+    await message.answer(
+        "✅ Telegram ID наставника обновлён!", reply_markup=kb.admin_mentor_edit_menu_kb(mentor_id)
+    )
 
 
 # ---------------------------------------------------------------------------

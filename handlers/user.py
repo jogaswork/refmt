@@ -81,6 +81,23 @@ async def _attach_user_to_mentor(
         except Exception:
             continue
 
+    # Уведомление самому наставнику (если у него указан telegram_id) — с анкетой ученика.
+    mentor_telegram_id = mentor.get("telegram_id")
+    if mentor_telegram_id:
+        latest_app = await db.get_latest_application(user_id)
+        anketa_text = latest_app["text"] if latest_app else "Анкета не найдена (ученик ещё не подавал заявку)."
+        mentor_text = (
+            "🎓 У вас новый ученик!\n\n"
+            f"Имя: {html_escape(first_name or '—')}\n"
+            f"Username: {who}\n"
+            f"ID: {user_id}\n\n"
+            f"Анкета:\n{html_escape(anketa_text)}"
+        )
+        try:
+            await bot.send_message(mentor_telegram_id, mentor_text)
+        except Exception:
+            pass
+
     return mentor
 
 
@@ -301,15 +318,15 @@ async def menu_chats(callback: CallbackQuery) -> None:
         return
 
     await callback.message.answer(
-    f"Информация о проекте MTR TEAM\n\n"
-    "└ Дата запуска: 28.08.2026\n\n"
-    "Процент выплат:\n"
-    "├ Прямой перевод: 80%\n"
-    "├ Крипто деп: 80%\n"
-    "├ Пополнение: 80%\n"
-    "└ Тех. поддержка: 70%",
-    reply_markup=kb.chats_list_kb(chats)
-)
+        f"Информация о проекте MTR TEAM\n\n"
+        "└ Дата запуска: 28.08.2026\n\n"
+        "Процент выплат:\n"
+        "├ Прямой перевод: 80%\n"
+        "├ Крипто деп: 80%\n"
+        "├ Пополнение: 80%\n"
+        "└ Тех. поддержка: 70%",
+        reply_markup=kb.chats_list_kb(chats)
+    )
     await callback.answer()
 
 
