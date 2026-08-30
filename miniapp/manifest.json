@@ -1,0 +1,11 @@
+```json
+{
+    "name": "MTR TEAM Mini App",
+    "short_name": "MTR TEAM",
+    "description": "MTR TEAM Referral Center",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#07080c",
+    "theme_color": "#08090d"
+}
+```
