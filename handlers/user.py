@@ -132,10 +132,10 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext,
         )
     else:
         await message.answer(
-            f"Привет, {html_escape(first_name)}! Добро пожаловать в команду <tg-emoji emoji-id="5372917041193828849">👇</tg-emoji>",
+            f'Привет, {html_escape(first_name)}! Добро пожаловать в команду <tg-emoji emoji-id="5372917041193828849">👇</tg-emoji>',
             reply_markup=kb.start_application_inline(),
             parse_mode="HTML"
-            )
+        )
 
     await message.answer(
     'Используй меню ниже <tg-emoji emoji-id="5231102735817918643">👇</tg-emoji>',
