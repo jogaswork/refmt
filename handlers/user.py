@@ -28,7 +28,7 @@ import keyboards as kb
 import profile_render
 import ranks
 from config import ADMIN_IDS
-from states import ApplicationForm, NicknameChange
+from states import ApplicationForm, MentorPanelProfit, NicknameChange
 from utils import (
     application_eligibility,
     format_mentor_card,
@@ -233,16 +233,17 @@ f'<tg-emoji emoji-id="5886223731088431288">📋</tg-emoji> Главное мен
 async def _send_main_menu(message: Message, user_id: int) -> None:
     """Отправляет меню картинкой images/menu.png с подписью и инлайн-кнопками."""
     is_admin = user_id in ADMIN_IDS
+    is_mentor = await db.get_mentor_by_telegram_id(user_id) is not None
     try:
         await message.answer_photo(
             photo=FSInputFile(MENU_IMAGE_PATH),
             caption=MAIN_MENU_TITLE,
-            reply_markup=kb.main_menu_inline(is_admin),
+            reply_markup=kb.main_menu_inline(is_admin, is_mentor),
         )
     except Exception:
         # Картинка могла быть не положена в images/menu.png — не роняем меню,
         # отправляем хотя бы текстовый вариант.
-        await message.answer(MAIN_MENU_TITLE, reply_markup=kb.main_menu_inline(is_admin))
+        await message.answer(MAIN_MENU_TITLE, reply_markup=kb.main_menu_inline(is_admin, is_mentor))
 
 
 @router.message(F.text == "📋 Меню")
@@ -500,6 +501,158 @@ async def mentor_apply(callback: CallbackQuery, bot: Bot) -> None:
         "Он свяжется с вами в ближайшее время."
     )
     await callback.answer("Готово ✅")
+
+
+# ---------------------------------------------------------------------------
+# Кабинет наставника: список учеников, карточка ученика, начисление профита
+# ---------------------------------------------------------------------------
+
+def _student_display_name(student: dict) -> str:
+    if student.get("nickname"):
+        return student["nickname"]
+    if student.get("username"):
+        return f"@{student['username']}"
+    return student.get("first_name") or str(student["user_id"])
+
+
+async def _get_current_mentor(user_id: int) -> Optional[dict]:
+    return await db.get_mentor_by_telegram_id(user_id)
+
+
+async def _send_mentor_students_list(message: Message, mentor: dict) -> None:
+    students = await db.get_mentor_students(mentor["mentor_id"])
+    if not students:
+        await message.answer(
+            "У вас пока нет закреплённых учеников.", reply_markup=kb.back_to_menu_kb()
+        )
+        return
+
+    needed = mentor.get("profit_count") or 0
+    labeled_students = []
+    for student in students:
+        done = await db.get_mentor_profit_count(student["user_id"], mentor["mentor_id"])
+        progress = f"{done}/{needed}" if needed else str(done)
+        labeled_students.append(
+            {"user_id": student["user_id"], "label": f"{_student_display_name(student)} — {progress}"}
+        )
+
+    await message.answer(
+        "🎓 Ваши ученики (в скобках — прогресс по профитам за стажировку):",
+        reply_markup=kb.mentor_panel_students_kb(labeled_students),
+    )
+
+
+async def _send_mentor_student_card(message: Message, mentor: dict, student_id: int) -> None:
+    student = await db.get_user(student_id)
+    if not student or student.get("mentor_id") != mentor["mentor_id"]:
+        await message.answer("Этот ученик больше не закреплён за вами.", reply_markup=kb.back_to_menu_kb())
+        return
+
+    needed = mentor.get("profit_count") or 0
+    done = await db.get_mentor_profit_count(student_id, mentor["mentor_id"])
+    profit_sum = await db.get_mentor_profit_sum(student_id, mentor["mentor_id"])
+    remaining = max(needed - done, 0) if needed else None
+
+    lines = [
+        f"👤 {_student_display_name(student)}",
+        f"ID: {student_id}",
+        f"Username: @{student['username']}" if student.get("username") else "Username: не указан",
+        "",
+        f"Профитов начислено вами: {done}" + (f" из {needed}" if needed else ""),
+        f"Сумма профита от вас: {profit_sum:,.2f} ₽".replace(",", " "),
+    ]
+    if remaining is not None:
+        if remaining > 0:
+            lines.append(f"До конца стажировки осталось: {remaining} профит(ов)")
+        else:
+            lines.append("🎉 Стажировка выполнена по количеству профитов!")
+
+    await message.answer("\n".join(lines), reply_markup=kb.mentor_panel_student_card_kb(student_id))
+
+
+@router.callback_query(F.data == "mentor_panel_open")
+async def mentor_panel_open(callback: CallbackQuery) -> None:
+    mentor = await _get_current_mentor(callback.from_user.id)
+    if not mentor:
+        await callback.answer("У вас нет доступа к кабинету наставника.", show_alert=True)
+        return
+
+    await _send_mentor_students_list(callback.message, mentor)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("mentor_panel_student:"))
+async def mentor_panel_student(callback: CallbackQuery) -> None:
+    mentor = await _get_current_mentor(callback.from_user.id)
+    if not mentor:
+        await callback.answer("У вас нет доступа к кабинету наставника.", show_alert=True)
+        return
+
+    student_id = int(callback.data.split(":", 1)[1])
+    await _send_mentor_student_card(callback.message, mentor, student_id)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("mentor_panel_add_profit:"))
+async def mentor_panel_add_profit_start(callback: CallbackQuery, state: FSMContext) -> None:
+    mentor = await _get_current_mentor(callback.from_user.id)
+    if not mentor:
+        await callback.answer("У вас нет доступа к кабинету наставника.", show_alert=True)
+        return
+
+    student_id = int(callback.data.split(":", 1)[1])
+    student = await db.get_user(student_id)
+    if not student or student.get("mentor_id") != mentor["mentor_id"]:
+        await callback.answer("Этот ученик больше не закреплён за вами.", show_alert=True)
+        return
+
+    await state.update_data(mentor_id=mentor["mentor_id"], student_id=student_id)
+    await state.set_state(MentorPanelProfit.waiting_for_amount)
+    await callback.message.answer(
+        f"Введите сумму профита для {_student_display_name(student)} (например: 1500 или 1500.50):"
+    )
+    await callback.answer()
+
+
+@router.message(MentorPanelProfit.waiting_for_amount)
+async def mentor_panel_add_profit_process(message: Message, state: FSMContext, bot: Bot) -> None:
+    mentor = await _get_current_mentor(message.from_user.id)
+    if not mentor:
+        await state.clear()
+        return
+
+    raw = (message.text or "").strip().replace(",", ".")
+    try:
+        amount = float(raw)
+    except ValueError:
+        await message.answer("Нужно ввести число. Попробуйте ещё раз (например: 1500.50):")
+        return
+
+    data = await state.get_data()
+    student_id = data.get("student_id")
+    mentor_id = data.get("mentor_id")
+    await state.clear()
+    if student_id is None or mentor_id is None:
+        return
+
+    await db.log_mentor_profit(student_id, mentor_id, amount)
+
+    student = await db.get_user(student_id)
+    try:
+        needed = mentor.get("profit_count") or 0
+        done = await db.get_mentor_profit_count(student_id, mentor_id)
+        progress_line = f"\nПрогресс стажировки: {done}/{needed}" if needed else ""
+        await bot.send_message(
+            student_id,
+            f"🎉 Наставник начислил вам профит: {amount:,.2f} ₽{progress_line}".replace(",", " "),
+        )
+    except Exception:
+        pass
+
+    await message.answer(
+        f"✅ Профит {amount:,.2f} ₽ добавлен ученику {_student_display_name(student)}.".replace(",", " ")
+    )
+    await _send_mentor_student_card(message, mentor, student_id)
 
 
 # ---------------------------------------------------------------------------
