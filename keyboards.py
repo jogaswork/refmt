@@ -69,9 +69,9 @@ def main_menu_inline(is_admin: bool = False) -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(
-                text="Чаты",
+                text="Информация",
                 callback_data="menu_chats",
-                icon_custom_emoji_id="5260535596941582167"
+                icon_custom_emoji_id="5879501875341955281"
             )
         ],
     ]
