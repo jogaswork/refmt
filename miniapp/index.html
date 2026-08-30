@@ -1,0 +1,358 @@
+```html
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    >
+
+    <meta name="theme-color" content="#08090d">
+
+    <title>MTR TEAM</title>
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+
+<body>
+
+<div class="background-glow glow-one"></div>
+<div class="background-glow glow-two"></div>
+
+<main class="app">
+
+    <!-- HEADER -->
+    <header class="topbar">
+
+        <div class="brand">
+
+            <div class="brand-logo">
+                MTR
+            </div>
+
+            <div class="brand-info">
+                <div class="brand-title">
+                    MTR TEAM
+                </div>
+
+                <div class="brand-subtitle">
+                    REFERRAL CENTER
+                </div>
+            </div>
+
+        </div>
+
+        <button
+            class="icon-button"
+            id="themeButton"
+            aria-label="Сменить тему"
+        >
+            ☼
+        </button>
+
+    </header>
+
+
+    <!-- HERO -->
+    <section class="hero card">
+
+        <div class="hero-badge">
+            MTR TEAM • MINI APP
+        </div>
+
+        <h1>
+            Удачных
+            <br>
+            <span>Профитов</span>
+        </h1>
+
+        <p>
+            Всё необходимое для твоей реферальной
+            активности — в одном месте.
+        </p>
+
+        <button
+            class="primary-button"
+            id="inviteButton"
+        >
+            <span>
+                Пригласить друзей
+            </span>
+
+            <b>↗</b>
+        </button>
+
+    </section>
+
+
+    <!-- STATS -->
+    <section class="stats-grid">
+
+        <div class="stat-card card">
+
+            <div class="stat-label">
+                ПРИГЛАШЕНО
+            </div>
+
+            <div
+                class="stat-value"
+                id="refsValue"
+            >
+                0
+            </div>
+
+            <div class="stat-description">
+                рефералов
+            </div>
+
+        </div>
+
+
+        <div class="stat-card card">
+
+            <div class="stat-label">
+                БОНУСЫ
+            </div>
+
+            <div
+                class="stat-value"
+                id="bonusValue"
+            >
+                0
+            </div>
+
+            <div class="stat-description">
+                условных единиц
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- REFERRAL -->
+    <section class="card section-card">
+
+        <div class="section-header">
+
+            <div>
+
+                <div class="eyebrow">
+                    ТВОЯ ССЫЛКА
+                </div>
+
+                <h2>
+                    Развивай свою команду
+                </h2>
+
+            </div>
+
+            <div class="live-status">
+                ● LIVE
+            </div>
+
+        </div>
+
+
+        <div class="referral-box">
+
+            <span id="referralLink">
+                Загрузка...
+            </span>
+
+            <button id="copyButton">
+                Копировать
+            </button>
+
+        </div>
+
+
+        <button
+            class="secondary-button"
+            id="shareButton"
+        >
+            Поделиться ссылкой
+        </button>
+
+    </section>
+
+
+    <!-- LEVEL -->
+    <section class="card section-card">
+
+        <div class="eyebrow">
+            АКТИВНОСТЬ
+        </div>
+
+        <h2>
+            Твоя статистика
+        </h2>
+
+
+        <div class="progress-header">
+
+            <span>
+                До следующего уровня
+            </span>
+
+            <b id="levelProgressText">
+                0 / 10
+            </b>
+
+        </div>
+
+
+        <div class="progress">
+
+            <div
+                class="progress-bar"
+                id="progressBar"
+            ></div>
+
+        </div>
+
+
+        <div class="level-container">
+
+            <div
+                class="level-number"
+                id="levelNumber"
+            >
+                01
+            </div>
+
+            <div class="level-info">
+
+                <strong id="levelName">
+                    START
+                </strong>
+
+                <p>
+                    Приглашай новых участников,
+                    чтобы открыть следующий уровень.
+                </p>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- ACTIONS -->
+    <section class="actions-grid">
+
+        <button
+            class="action-card card"
+            id="profileButton"
+        >
+
+            <div class="action-icon">
+                ◉
+            </div>
+
+            <strong>
+                Профиль
+            </strong>
+
+            <small>
+                Данные аккаунта
+            </small>
+
+        </button>
+
+
+        <button
+            class="action-card card"
+            id="rulesButton"
+        >
+
+            <div class="action-icon">
+                ?
+            </div>
+
+            <strong>
+                Правила
+            </strong>
+
+            <small>
+                Как это работает
+            </small>
+
+        </button>
+
+
+        <button
+            class="action-card card"
+            id="supportButton"
+        >
+
+            <div class="action-icon">
+                ↗
+            </div>
+
+            <strong>
+                Поддержка
+            </strong>
+
+            <small>
+                Связаться с админом
+            </small>
+
+        </button>
+
+    </section>
+
+
+    <!-- FOOTER -->
+    <footer>
+        С любовью
+        <strong>MTR TEAM</strong>
+    </footer>
+
+</main>
+
+
+<!-- MODAL -->
+
+<div
+    class="modal"
+    id="modal"
+>
+
+    <div class="modal-content card">
+
+        <button
+            class="modal-close"
+            id="modalClose"
+        >
+            ×
+        </button>
+
+        <div id="modalContent"></div>
+
+    </div>
+
+</div>
+
+
+<!-- TOAST -->
+
+<div
+    class="toast"
+    id="toast"
+>
+    Готово
+</div>
+
+
+<script src="app.js"></script>
+
+</body>
+</html>
+```
