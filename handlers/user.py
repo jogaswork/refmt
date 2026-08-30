@@ -207,7 +207,8 @@ RANK_EMOJI_ID = "5278296377632250061"
 
 
 MAIN_MENU_TITLE = (
-f'<tg-emoji emoji-id="5886223731088431288">📋</tg-emoji> Главное меню'
+f'<tg-emoji emoji-id="5886223731088431288">📋</tg-emoji> Главное меню/n'
+"Выберите пункт ниже:"
 )
 
 async def _send_main_menu(message: Message, user_id: int) -> None:
