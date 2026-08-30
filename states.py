@@ -1,7 +1,6 @@
 """
 Состояния конечного автомата (FSM) для всех сценариев бота.
 """
-
 from aiogram.fsm.state import State, StatesGroup
 
 
@@ -46,6 +45,7 @@ class MentorForm(StatesGroup):
     waiting_for_specialization = State()
     waiting_for_percent = State()
     waiting_for_profit_count = State()
+    waiting_for_telegram_id = State()
 
 
 class MentorEditText(StatesGroup):
@@ -59,6 +59,10 @@ class MentorEditSpecialization(StatesGroup):
 class MentorEditConditions(StatesGroup):
     waiting_for_percent = State()
     waiting_for_profit_count = State()
+
+
+class MentorEditTelegramId(StatesGroup):
+    waiting_for_telegram_id = State()
 
 
 class NicknameChange(StatesGroup):

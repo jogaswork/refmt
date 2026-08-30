@@ -246,6 +246,7 @@ def admin_mentor_edit_menu_kb(mentor_id: int) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="✏️ Изменить текст", callback_data=f"admin_mentor_edit_text:{mentor_id}")],
             [InlineKeyboardButton(text="🏷 Изменить специализацию", callback_data=f"admin_mentor_edit_spec:{mentor_id}")],
             [InlineKeyboardButton(text="💰 Изменить условия", callback_data=f"admin_mentor_edit_conditions:{mentor_id}")],
+            [InlineKeyboardButton(text="📱 Telegram ID наставника", callback_data=f"admin_mentor_edit_telegram_id:{mentor_id}")],
             [InlineKeyboardButton(text="🗑 Удалить наставника", callback_data=f"admin_mentor_delete:{mentor_id}")],
             [InlineKeyboardButton(text="⬅️ Назад к списку", callback_data="admin_mentors")],
         ]

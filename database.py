@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS mentors (
     specialization TEXT DEFAULT '',
     profit_percent REAL DEFAULT 0,
     profit_count INTEGER DEFAULT 0,
+    telegram_id INTEGER,
     created_at TEXT
 );
 
@@ -105,6 +106,12 @@ async def init_db() -> None:
         app_columns = [col[1] for col in await cursor.fetchall()]
         if "decided_at" not in app_columns:
             await db_conn.execute("ALTER TABLE applications ADD COLUMN decided_at TEXT")
+            await db_conn.commit()
+
+        cursor = await db_conn.execute("PRAGMA table_info(mentors)")
+        mentor_columns = [col[1] for col in await cursor.fetchall()]
+        if "telegram_id" not in mentor_columns:
+            await db_conn.execute("ALTER TABLE mentors ADD COLUMN telegram_id INTEGER")
             await db_conn.commit()
 
 
@@ -336,16 +343,21 @@ async def set_user_nickname(user_id: int, nickname: str) -> None:
 # ---------------------------------------------------------------------------
 
 async def create_mentor(
-    name: str, description: str, specialization: str, profit_percent: float, profit_count: int
+    name: str,
+    description: str,
+    specialization: str,
+    profit_percent: float,
+    profit_count: int,
+    telegram_id: Optional[int] = None,
 ) -> int:
     created_at = datetime.datetime.utcnow().isoformat()
     async with aiosqlite.connect(DB_PATH) as db_conn:
         cursor = await db_conn.execute(
             """
-            INSERT INTO mentors (name, description, specialization, profit_percent, profit_count, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO mentors (name, description, specialization, profit_percent, profit_count, telegram_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (name, description, specialization, profit_percent, profit_count, created_at),
+            (name, description, specialization, profit_percent, profit_count, telegram_id, created_at),
         )
         await db_conn.commit()
         return cursor.lastrowid
@@ -386,6 +398,14 @@ async def update_mentor_conditions(mentor_id: int, profit_percent: float, profit
         await db_conn.execute(
             "UPDATE mentors SET profit_percent = ?, profit_count = ? WHERE mentor_id = ?",
             (profit_percent, profit_count, mentor_id),
+        )
+        await db_conn.commit()
+
+
+async def update_mentor_telegram_id(mentor_id: int, telegram_id: Optional[int]) -> None:
+    async with aiosqlite.connect(DB_PATH) as db_conn:
+        await db_conn.execute(
+            "UPDATE mentors SET telegram_id = ? WHERE mentor_id = ?", (telegram_id, mentor_id)
         )
         await db_conn.commit()
 
