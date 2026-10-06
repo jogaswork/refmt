@@ -296,7 +296,7 @@ async def menu_referral(callback: CallbackQuery, bot: Bot) -> None:
     text = (
         f"Ваша реферальная ссылка: \n\n{ref_link}\n\n"
         "Вы получаете 10% с первого профита реферала. Выплаты осуществляются администратором.\n"
-        "Для получения выплаты отпишите: @manzi_nx или @jogas_wor"
+        "Для получения выплаты отпишите: @manzi_wor или @jogas_wor"
     )
 
     photo_path = IMAGES_DIR / "111.jpg"
