@@ -32,5 +32,5 @@ MENTOR_SPECIALIZATIONS: list[tuple[str, str, str]] = [
     ("trade", "📈 Трейд", "📈 Трейд"),
     ("escort", "💎 Эскорт", "💎 Эскорт"),
     ("mreo", "📄 МРЭО", "📄 МРЭО"),
-    ("shantazh", "ℹ️ Шантаж", "<tg-emoji emoji-id="5422789690333883156">ℹ️</tg-emoji> Шантаж"),
+    ("shantazh", "ℹ️ Шантаж", '<tg-emoji emoji-id="5422789690333883156">ℹ️</tg-emoji> Шантаж'),
 ]
