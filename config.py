@@ -28,9 +28,9 @@ DB_PATH: str = os.getenv("DB_PATH", "/app/data/bot.db")
 # Подпись в карточке — то, что показывается в тексте сообщения (там премиум-эмодзи работают
 # через тег <tg-emoji emoji-id="...">, поддерживается только при parse_mode=HTML).
 MENTOR_SPECIALIZATIONS: list[tuple[str, str, str]] = [
-    ("rest", "🏖 Отдых", '<tg-emoji emoji-id="5084959154947228499">🏖</tg-emoji> Отдых'),
+    ("rest", "🏖 Нарко", '<tg-emoji emoji-id="5084959154947228499">🏖</tg-emoji> Нарко'),
     ("trade", "📈 Трейд", "📈 Трейд"),
     ("escort", "💎 Эскорт", "💎 Эскорт"),
     ("mreo", "📄 МРЭО", "📄 МРЭО"),
-    ("nft", "🖼 NFT", "🖼 NFT"),
+    ("shantazh", "🖼 Шантаж", "🖼 Шантаж"),
 ]
